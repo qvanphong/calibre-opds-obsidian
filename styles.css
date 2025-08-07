@@ -1,0 +1,218 @@
+/* EPUB Viewer Styles - Matching Obsidian Theme */
+.epub-viewer-container {
+    background: var(--background-primary) !important;
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+    font-size: var(--font-text-size) !important;
+    line-height: var(--line-height-normal) !important;
+}
+
+/* EPUB Controls - Bottom Center Positioning */
+.epub-controls {
+    position: absolute !important;
+    bottom: 10px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    background: var(--background-primary) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    border-radius: 6px !important;
+    padding: 4px !important;
+    display: flex !important;
+    gap: 2px !important;
+    z-index: 1000 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+    backdrop-filter: blur(10px) !important;
+    transition: all 0.2s ease !important;
+}
+
+.epub-controls:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+}
+
+.epub-controls button {
+    background: var(--interactive-normal) !important;
+    color: var(--text-normal) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    padding: 6px 8px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+    min-width: 28px !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.epub-controls button:hover {
+    background: var(--interactive-hover) !important;
+    transform: translateY(-1px) !important;
+}
+
+.epub-controls button:active {
+    transform: translateY(0) !important;
+}
+
+/* EPUB.js iframe and content styling */
+.epub-viewer-container iframe {
+    background: var(--background-primary) !important;
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+    font-size: var(--font-text-size) !important;
+    line-height: var(--line-height-normal) !important;
+}
+
+/* EPUB content styling - targeting the actual EPUB content */
+.epub-viewer-container .epub-view iframe {
+    background: var(--background-primary) !important;
+}
+
+/* Style the EPUB content when it loads */
+.epub-viewer-container .epub-view iframe body,
+.epub-viewer-container .epub-view iframe html {
+    background: var(--background-primary) !important;
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+    font-size: var(--font-text-size) !important;
+    line-height: var(--line-height-normal) !important;
+}
+
+/* EPUB content elements */
+.epub-viewer-container .epub-view iframe h1,
+.epub-viewer-container .epub-view iframe h2,
+.epub-viewer-container .epub-view iframe h3,
+.epub-viewer-container .epub-view iframe h4,
+.epub-viewer-container .epub-view iframe h5,
+.epub-viewer-container .epub-view iframe h6 {
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+    font-weight: var(--font-bold-weight) !important;
+}
+
+.epub-viewer-container .epub-view iframe p {
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+    font-size: var(--font-text-size) !important;
+    line-height: var(--line-height-normal) !important;
+}
+
+.epub-viewer-container .epub-view iframe div {
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+}
+
+.epub-viewer-container .epub-view iframe span {
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+}
+
+/* Links in EPUB content */
+.epub-viewer-container .epub-view iframe a {
+    color: var(--text-accent) !important;
+    text-decoration: none !important;
+}
+
+.epub-viewer-container .epub-view iframe a:hover {
+    color: var(--text-accent-hover) !important;
+    text-decoration: underline !important;
+}
+
+/* Code blocks in EPUB content */
+.epub-viewer-container .epub-view iframe code,
+.epub-viewer-container .epub-view iframe pre {
+    background: var(--background-secondary) !important;
+    color: var(--text-normal) !important;
+    font-family: var(--font-monospace) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+}
+
+/* Blockquotes in EPUB content */
+.epub-viewer-container .epub-view iframe blockquote {
+    border-left: 3px solid var(--text-accent) !important;
+    background: var(--background-secondary) !important;
+    color: var(--text-normal) !important;
+    padding-left: 1em !important;
+    margin: 1em 0 !important;
+}
+
+/* Tables in EPUB content */
+.epub-viewer-container .epub-view iframe table {
+    border: 1px solid var(--background-modifier-border) !important;
+    background: var(--background-primary) !important;
+}
+
+.epub-viewer-container .epub-view iframe th,
+.epub-viewer-container .epub-view iframe td {
+    border: 1px solid var(--background-modifier-border) !important;
+    color: var(--text-normal) !important;
+    background: var(--background-primary) !important;
+}
+
+.epub-viewer-container .epub-view iframe th {
+    background: var(--background-secondary) !important;
+    font-weight: var(--font-bold-weight) !important;
+}
+
+/* Lists in EPUB content */
+.epub-viewer-container .epub-view iframe ul,
+.epub-viewer-container .epub-view iframe ol {
+    color: var(--text-normal) !important;
+}
+
+.epub-viewer-container .epub-view iframe li {
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+}
+
+/* Emphasis and strong text */
+.epub-viewer-container .epub-view iframe em {
+    color: var(--text-normal) !important;
+    font-style: italic !important;
+}
+
+.epub-viewer-container .epub-view iframe strong {
+    color: var(--text-normal) !important;
+    font-weight: var(--font-bold-weight) !important;
+}
+
+/* Table of contents modal styling */
+.epub-toc-modal {
+    background: var(--background-primary) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    color: var(--text-normal) !important;
+}
+
+.epub-toc-modal h3 {
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+    font-weight: var(--font-bold-weight) !important;
+}
+
+.epub-toc-modal .toc-item {
+    color: var(--text-normal) !important;
+    font-family: var(--font-text) !important;
+    border-bottom: 1px solid var(--background-modifier-border) !important;
+}
+
+.epub-toc-modal .toc-item:hover {
+    background: var(--background-secondary) !important;
+    color: var(--text-accent) !important;
+}
+
+/* Loading state styling */
+.epub-loading {
+    color: var(--text-muted) !important;
+    font-family: var(--font-text) !important;
+    font-size: var(--font-text-size) !important;
+}
+
+/* Error state styling */
+.epub-error {
+    color: var(--text-error) !important;
+    font-family: var(--font-text) !important;
+    font-size: var(--font-text-size) !important;
+}
+
+div[data-type="epub-viewer"] .view-content {
+    overflow: hidden !important;
+}
