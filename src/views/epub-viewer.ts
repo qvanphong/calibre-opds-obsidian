@@ -616,6 +616,10 @@ export class EPUBViewer extends ItemView {
             this.generateTotalPages()
                 .then(total => {
                     this.topBar.setTotal(total);
+                    const currentLocation: Location | null = this.currentRendition?.currentLocation() as unknown as Location | null;
+                    if (currentLocation) {
+                        this.topBar.setCurrent(currentLocation.start.location + 1);
+                    }
                 });
         }
 
