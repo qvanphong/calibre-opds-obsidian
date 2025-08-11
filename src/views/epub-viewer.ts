@@ -211,7 +211,6 @@ export class EPUBViewer extends ItemView {
                             this.currentRendition?.display(cfi);
                             this.currentRendition?.display(currentLocation);
                         }
-                        this.updateTotalGeneratedPages();
                     }, 100);
                 }
 
@@ -586,11 +585,6 @@ export class EPUBViewer extends ItemView {
 
         const pages = await locations.generate?.(1200)
         return pages.length;
-    }
-
-    private async updateTotalGeneratedPages(): Promise<void> {
-        const total = await this.generateTotalPages();
-        this.topBar.setTotal(total);
     }
 
     private async wireTopBar() {
