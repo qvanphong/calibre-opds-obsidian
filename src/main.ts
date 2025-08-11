@@ -1,7 +1,7 @@
 import { Plugin} from 'obsidian';
 import { DEFAULT_SETTINGS, SettingTab } from './setting';
 import { CalibreWebView, VIEW_TYPE_CALIBRE } from './views/calibre-web-view';
-import { EPUBViewer } from './epub-viewer';
+import { EPUBViewer } from './views/epub-viewer';
 
 const VIEW_TYPE_EPUB = "epub-viewer";
 
@@ -22,7 +22,7 @@ export default class CalibreWebPlugin extends Plugin {
 
         this.registerView(
             VIEW_TYPE_EPUB,
-            (leaf) => new EPUBViewer(leaf)
+            (leaf) => new EPUBViewer(leaf, this)
         );
 
         // Add ribbon icon to the left sidebar

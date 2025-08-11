@@ -1,10 +1,10 @@
 {
 	"id": "calibre-web",
-	"name": "Calibre-web OPDS",
+	"name": "Calibre-web Obsidian",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Access Calibre-web OPDS catalog from Obsidian with a ribbon button.",
-	"author": "Your Name",
-	"authorUrl": "https://github.com/yourusername",
+	"description": "Access & Read books from Calibre-web.",
+	"author": "qvanphong",
+	"authorUrl": "https://github.com/qvanphong",
 	"isDesktopOnly": false
 }
