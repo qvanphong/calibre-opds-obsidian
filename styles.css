@@ -27,6 +27,33 @@ div[data-type="epub-viewer"] .view-content {
     transition: background-color 0.2s ease;
 }
 
+/* Compact centered arrows */
+.epub-viewer-container .epub-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 64px;
+    line-height: 1;
+    color: var(--text-muted);
+    user-select: none;
+    cursor: pointer;
+    z-index: 1001;
+    margin: 0px 20px;
+    background: transparent;
+}
+
+.epub-viewer-container .epub-arrow:hover {
+    color: var(--text-normal);
+}
+
+.epub-viewer-container .epub-arrow-left {
+    left: 0;
+}
+
+.epub-viewer-container .epub-arrow-right {
+    right: 0;
+}
+
 .epub-viewer-topbar {
     flex: 0 0 auto;
     display: flex;
@@ -60,4 +87,11 @@ div[data-type="epub-viewer"] .view-content {
 
 .epub-viewer-topbar .curr-page-input {
     width:72px; text-align:center; padding:4px 6px; background:var(--background-secondary); color:var(--text-normal); border:1px solid var(--background-modifier-border); border-radius:4px;
+}
+
+/* Epub Responsive for small screen */
+
+.small-screen.epub-viewer-container .epub-arrow {
+    margin: 0 !important;
+    font-size: 48px !important;
 }

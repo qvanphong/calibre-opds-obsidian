@@ -35,7 +35,10 @@ export class EPUBViewer extends ItemView {
     private book?: Book;
     topBar: EpubTopBar;
     private plugin: Plugin;
-    private epubViewContainer?: HTMLElement;
+
+    private epubView?: HTMLElement;
+    private epubContainerView?: HTMLElement;
+    private resizeObservers: ResizeObserver[] = [];
 
     constructor(leaf: WorkspaceLeaf, plugin: Plugin) {
         super(leaf);
@@ -85,6 +88,7 @@ export class EPUBViewer extends ItemView {
     async onClose() {
         // Cleanup if needed
         this.currentRendition = null;
+        this.resizeObservers.forEach(observer => observer.disconnect());
     }
 
     private debouncedResize = debounce(async () => {
@@ -116,9 +120,11 @@ export class EPUBViewer extends ItemView {
             return;
         }
 
-        const { readerHost, loadingEl, topBar } = this.buildViewerShell(host);
-        this.epubViewContainer = readerHost;
+        const { viewerContainer, readerHost, loadingEl, topBar } = this.buildViewerShell(host);
+        this.epubContainerView = viewerContainer;
+        this.epubView = readerHost;
         this.topBar = topBar;
+        this.setupResizeObserver();
         try {
             await this.initializeEpubViewer(loadingEl);
         } catch (error) {
@@ -399,6 +405,25 @@ export class EPUBViewer extends ItemView {
         });
     }
 
+    private setupResizeObserver(): void {   
+        if (this.epubContainerView) {
+            const epubContainerViewObserver: ResizeObserver = new ResizeObserver((entries) => {
+                entries.forEach((entry) => {
+                    const itemViewWidth: number = entry.contentRect.width;
+                    if (itemViewWidth <= 650) {  
+                        if (!this.epubContainerView?.classList.contains('small-screen')) {
+                            this.epubContainerView?.classList.add('small-screen');
+                        }
+                    } else {
+                        this.epubContainerView?.classList.remove('small-screen');
+                    }
+                });
+            });
+            epubContainerViewObserver.observe(this.epubContainerView);
+            this.resizeObservers.push(epubContainerViewObserver);
+        }
+    }
+
     private showTableOfContents(toc: Navigation): void {
         // Create modal for table of contents
         const modal = document.createElement('div');
@@ -443,72 +468,26 @@ export class EPUBViewer extends ItemView {
     }
 
     private updateNavigationAreas(rendition: Rendition): void {
-        const container = this.epubViewContainer;
+        const container = this.epubContainerView;
         if (!container) return;
 
-        // Remove existing navigation areas
-        const existingLeftNav = container.querySelector('.epub-nav-left');
-        const existingRightNav = container.querySelector('.epub-nav-right');
+        // Remove any existing arrows or legacy nav areas
+        container.querySelector('.epub-arrow-left')?.remove();
+        container.querySelector('.epub-arrow-right')?.remove();
 
-        if (existingLeftNav) existingLeftNav.remove();
-        if (existingRightNav) existingRightNav.remove();
-
-        // Left navigation area
-        const leftNav = container.createEl("div", {
-            cls: "epub-nav-left"
+        // Left arrow
+        const leftArrow = container.createEl('div', {
+            cls: 'epub-arrow epub-arrow-left',
+            text: '‹'
         });
+        leftArrow.addEventListener('click', () => rendition.prev());
 
-        // Add hover effect
-        leftNav.addEventListener('mouseenter', () => {
-            leftNav.style.backgroundColor = 'rgba(0,0,0,0.1)';
+        // Right arrow
+        const rightArrow = container.createEl('div', {
+            cls: 'epub-arrow epub-arrow-right',
+            text: '›'
         });
-
-        leftNav.addEventListener('mouseleave', () => {
-            leftNav.style.backgroundColor = 'transparent';
-        });
-
-        // Add click handler
-        leftNav.addEventListener('click', () => {
-            rendition.prev();
-        });
-
-        // Right navigation area
-        const rightNav = container.createEl("div", {
-            cls: "epub-nav-right"
-        });
-
-        // Add hover effect
-        rightNav.addEventListener('mouseenter', () => {
-            rightNav.style.backgroundColor = 'rgba(0,0,0,0.1)';
-        });
-
-        rightNav.addEventListener('mouseleave', () => {
-            rightNav.style.backgroundColor = 'transparent';
-        });
-
-        // Add click handler
-        rightNav.addEventListener('click', () => {
-            rendition.next();
-        });
-
-        // Workaround for scroll issue when mouse hovering on the navigators, the mouse scroll is not working
-        if (this.settings.flow === 'scrolled') {
-            leftNav.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                container.querySelector('.epub-container')?.scrollBy({
-                    top: e.deltaY,
-                    behavior: 'auto' // Or 'smooth' if you like
-                });
-            }, { passive: false });
-
-            rightNav.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                container.querySelector('.epub-container')?.scrollBy({
-                    top: e.deltaY,
-                    behavior: 'auto' // Or 'smooth' if you like
-                });
-            }, { passive: false });
-        }
+        rightArrow.addEventListener('click', () => rendition.next());
     }
 
     // Compute effective font family with a safe fallback
@@ -550,8 +529,8 @@ export class EPUBViewer extends ItemView {
 
     private makeRendition(): Rendition {
         if (!this.book) throw new Error('Book not loaded');
-        if (!this.epubViewContainer) throw new Error('Container not found');
-        return this.book.renderTo(this.epubViewContainer, {
+        if (!this.epubView) throw new Error('Container not found');
+        return this.book.renderTo(this.epubView, {
             flow: this.settings.flow,
             width: '100%',
             height: '100%'

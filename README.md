@@ -94,8 +94,7 @@ If you have multiple URLs, you can also do:
 See https://github.com/obsidianmd/obsidian-api
 
 ## TODO
-[ ] when apply theme, use the background color for the container element too
-[ ] Fix incorrect total page number when switch from 1 column to 2 columns
-[ ] Fix the back/navigation button for calibre-web browsing UI
-[ ] Add book cover for books
-[ ] Highlight implementation
+- [ ] when apply theme, use the background color for the container element too
+- [ ] Fix the back/navigation button for calibre-web browsing UI
+- [ ] Add book cover for books
+- [ ] Highlight implementation
