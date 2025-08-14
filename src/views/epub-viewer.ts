@@ -113,10 +113,7 @@ export class EPUBViewer extends ItemView {
         host.empty();
 
         if (!this.epubUrl || !this.bookTitle) {
-            host.createEl("div", {
-                text: "No EPUB file specified",
-                attr: { style: "text-align: center; padding: 20px; color: var(--text-muted);" }
-            });
+            host.createEl("div", { text: "No EPUB file specified", cls: "epub-empty-message" });
             return;
         }
 
@@ -220,11 +217,6 @@ export class EPUBViewer extends ItemView {
                     }, 100);
                 }
 
-                // Update nav areas
-                if (this.currentRendition) {
-                    this.updateNavigationAreas(this.currentRendition);
-                }
-
                 // Apply styles
                 if (this.currentRendition) {
                     this.applySettingsToRendition(this.currentRendition);
@@ -252,7 +244,6 @@ export class EPUBViewer extends ItemView {
                     setTimeout(() => this.currentRendition?.display(currentLocation), 100);
                 }
                 if (this.currentRendition) {
-                    this.updateNavigationAreas(this.currentRendition);
                     this.applySettingsToRendition(this.currentRendition);
                 }
             },
@@ -338,48 +329,6 @@ export class EPUBViewer extends ItemView {
                 rendition.spread('none');
             }
         }
-
-        // Update navigation areas if needed
-        this.updateNavigationAreas(rendition);
-    }
-
-    private applyStylesToCurrentIframe(styleContent: string, theme: any): void {
-        // Find the current iframe
-        const currentIframe = document.querySelector('.epub-viewer-container iframe') as HTMLIFrameElement;
-        if (currentIframe && currentIframe.contentDocument) {
-            const iframe = currentIframe.contentDocument;
-
-            // Remove existing style if present
-            const existingStyle = iframe.head?.querySelector('#epub-custom-styles');
-            if (existingStyle) {
-                existingStyle.remove();
-            }
-
-            // Add new style
-            if (iframe.head) {
-                const newStyle = iframe.createElement('style');
-                newStyle.id = 'epub-custom-styles';
-                newStyle.textContent = styleContent;
-                iframe.head.appendChild(newStyle);
-            }
-
-            // Apply styles to body element (without padding)
-            if (iframe.body) {
-                iframe.body.style.background = theme.backgroundColor;
-                iframe.body.style.color = theme.textColor;
-                iframe.body.style.fontFamily = this.getEffectiveFontFamily();
-                iframe.body.style.fontSize = this.settings.fontSize;
-                iframe.body.style.lineHeight = this.settings.lineHeight;
-                iframe.body.style.margin = this.settings.margin;
-                // iframe.body.style.padding = '0';
-            }
-
-            // Apply styles to html element as well
-            if (iframe.documentElement) {
-                iframe.documentElement.style.background = theme.backgroundColor;
-                iframe.documentElement.style.color = theme.textColor;
-            }
-        }
     }
 
     private setupThemeChangeListener(): void {
@@ -427,29 +376,22 @@ export class EPUBViewer extends ItemView {
     private showTableOfContents(toc: Navigation): void {
         // Create modal for table of contents
         const modal = document.createElement('div');
-        modal.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.5); z-index: 2000; display: flex; 
-            align-items: center; justify-content: center;
-        `;
+        modal.className = 'epub-toc-modal';
 
         const content = document.createElement('div');
-        content.style.cssText = `
-            background: var(--background-primary); border: 1px solid var(--background-modifier-border); 
-            border-radius: 8px; padding: 20px; max-width: 400px; max-height: 80vh; overflow-y: auto;
-        `;
+        content.className = 'epub-toc-content';
 
         content.innerHTML = `
-            <h3 style="margin: 0 0 15px 0;">Table of Contents</h3>
-            <div id="toc-list"></div>
-            <button id="close-toc" style="margin-top: 15px; background: var(--interactive-accent); color: var(--text-on-accent); border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Close</button>
+            <h3 class="epub-toc-title">Table of Contents</h3>
+            <div id="toc-list" class="epub-toc-list"></div>
+            <button id="close-toc" class="epub-toc-close-btn">Close</button>
         `;
 
         const tocList = content.querySelector('#toc-list');
         if (toc && toc.toc) {
-            toc.toc.forEach((item: any) => {
+            toc.toc.forEach((item: { href: string; label: string }) => {
                 const itemEl = document.createElement('div');
-                itemEl.style.cssText = 'padding: 8px; cursor: pointer; border-bottom: 1px solid var(--background-modifier-border);';
+                itemEl.className = 'epub-toc-item';
                 itemEl.textContent = item.label;
                 itemEl.addEventListener('click', () => {
                     this.currentRendition?.display(item.href);
@@ -503,17 +445,12 @@ export class EPUBViewer extends ItemView {
 
     // Helpers
     private buildViewerShell(host: HTMLElement): { viewerContainer: HTMLElement; readerHost: HTMLElement; loadingEl: HTMLElement; topBar: EpubTopBar } {
-        const viewerContainer = host.createEl("div", {
-            cls: "epub-viewer-container",
-            attr: {
-                style: "width: 100%; height: calc(100vh - 100px); border: 1px solid var(--background-modifier-border); border-radius: 4px; display:flex; flex-direction:column; overflow:hidden;"
-            }
-        });
+        const viewerContainer = host.createEl("div", { cls: "epub-viewer-container" });
         const topBar = new EpubTopBar().attach(viewerContainer);
 
         // Reader host
-        const readerHost = viewerContainer.createEl('div', { cls: 'epub-reader-host', attr: { style: 'flex:1 1 auto; position:relative; overflow:hidden; width:100%;' } });
-        const loadingEl = readerHost.createEl('div', { text: 'Loading EPUB...', attr: { style: 'text-align:center; padding:20px; color:var(--text-muted);' } });
+        const readerHost = viewerContainer.createEl('div', { cls: 'epub-reader-host' });
+        const loadingEl = readerHost.createEl('div', { text: 'Loading EPUB...', cls: 'epub-loading' });
         return { viewerContainer, readerHost, loadingEl, topBar };
     }
 
@@ -533,7 +470,7 @@ export class EPUBViewer extends ItemView {
         return this.book.renderTo(this.epubView, {
             flow: this.settings.flow,
             width: '100%',
-            height: '100%'
+            height: '100%',
         });
     }
 

@@ -44,7 +44,7 @@ export class EpubTopBar {
         const totalSpan = center.createEl('span', {
             text: '…',
             attr: {
-                style: 'min-width:40px; text-align:left; color:var(--text-muted);',
+                style: 'min-width:40px; text-align:left; color:var(--text-muted); font-size: 14px;',
             },
         });
 
