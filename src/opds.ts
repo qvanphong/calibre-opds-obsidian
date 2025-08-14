@@ -109,7 +109,7 @@ export class OPDSClient {
 
             let thumbnailUrl: string | undefined;
             if (thumbnailElement?.getAttribute('href')) {
-                thumbnailUrl = this.toAuthenticateUrlParams(thumbnailElement.getAttribute('href') || '');
+                thumbnailUrl = this.toAuthenticateUrlParams(this.baseUrl + thumbnailElement.getAttribute('href') || '');
             }
             const book: OPDSBook = {
                 title: title,
