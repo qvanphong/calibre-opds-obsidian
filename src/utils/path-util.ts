@@ -1,5 +1,5 @@
 import { App } from "obsidian";
-import { CalibreWebPluginSettings } from "src/types";
+import { CalibreWebPluginSettings } from "src/interfaces";
 
 export function getFilenameExtension(filename: string): string {
 	const lastDotIndex = filename.lastIndexOf('.');

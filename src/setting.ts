@@ -1,6 +1,6 @@
 import { App, debounce, PluginSettingTab, Setting } from 'obsidian';
 import CalibrePlugin from './main';
-import { CalibreWebPluginSettings } from './types';
+import { CalibreWebPluginSettings } from './interfaces';
 // import { CALIBRE_ICON_ID } from './tools';
 
 

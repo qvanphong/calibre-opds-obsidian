@@ -3,14 +3,14 @@ import sanitize from 'sanitize-filename';
 import PDFConflictModal from '../modal/conflict-modal';
 import { getAvailablePath, getBookPathOrResourcePath } from '../utils/path-util';
 import { getFormatDisplayName } from '../utils/name-utils';
-import { CalibreWebPluginSettings, OPDSBook, OPDSCategory } from '../types';
+import { CalibreWebPluginSettings, OPDSBook, OPDSBookFormat, OPDSCatalog, OPDSEntry, NavigationItem } from '../interfaces';
 import { OPDSClient } from '../opds';
-
 
 export const VIEW_TYPE_CALIBRE = "calibre-web-view";
 
+
 export class CalibreWebView extends ItemView {
-    private navigationStack: Array<{ title: string, url: string, content: OPDSCategory[] | { books: OPDSBook[], subcategories: OPDSCategory[] } }> = [];
+    private navigationStack: NavigationItem[] = [];
     private currentContainer: HTMLElement | null = null;
     private opdsClient: OPDSClient;
     private settings: CalibreWebPluginSettings;
@@ -36,30 +36,36 @@ export class CalibreWebView extends ItemView {
     async onOpen() {
         const container = this.containerEl.children[1] as HTMLElement;
         this.currentContainer = container;
-        await this.loadMainCatalog(container);
+        await this.loadMainCatalog();
     }
 
-    private async loadMainCatalog(container: HTMLElement) {
-        container.empty();
+    async onClose() {
+        this.navigationStack = [];
+        this.currentContainer = null;
+    }
 
-        // Add header with title
-        const headerEl = container.createEl("div", { cls: "calibre-header" });
-        headerEl.createEl("h4", { text: "Calibre-web OPDS Catalog" });
+    // ===== MAIN LOADING METHODS =====
 
-        // Show loading state
-        const loadingEl = container.createEl("div", { text: "Loading OPDS catalog..." });
+    private async loadMainCatalog() {
+        if (!this.currentContainer) return;
+
+        this.clearContainer();
+        this.createHeader("Calibre-web OPDS Catalog");
+        
+        const loadingEl = this.showLoading("Loading OPDS catalog...");
 
         try {
-            const categories = await this.opdsClient.getCatalog();
-
-            // Remove loading message
+            const entry: OPDSEntry = await this.opdsClient.getEntry();
             loadingEl.remove();
 
-            // Store in navigation stack
-            this.navigationStack = [{ title: "Main Catalog", url: this.opdsClient.getCatalogUrl(), content: categories }];
-
-            // Display categories
-            this.displayCategories(container, categories);
+            // Initialize navigation stack
+            this.navigationStack = [{
+                title: "Main Catalog",
+                url: this.opdsClient.getOpdsUrl(),
+                type: 'catalogs',
+                data: entry
+            }];
+            this.displayCatalogsOrBooks(entry);
 
         } catch (error) {
             console.error('Error fetching OPDS feed:', error);
@@ -67,151 +73,265 @@ export class CalibreWebView extends ItemView {
         }
     }
 
-    private displayCategories(container: HTMLElement, categories: OPDSCategory[]) {
-        if (categories.length === 0) {
-            container.createEl("p", { text: "No categories found in the OPDS feed." });
-            return;
-        }
-
-        const categoriesContainer = container.createEl("div", { cls: "calibre-categories" });
-
-        categories.forEach((category) => {
-            const categoryEl = categoriesContainer.createEl("div", { cls: "calibre-category-item" });
-
-            categoryEl.createEl("h5", { text: category.title, cls: "calibre-category-title" });
-
-            if (category.bookCount !== undefined && category.bookCount > 0) {
-                categoryEl.createEl("small", { text: `${category.bookCount} books`, cls: "calibre-book-count" });
-            }
-
-            // Add click handler to open category
-            categoryEl.addEventListener('click', () => {
-                this.openCategory(category);
-            });
-        });
-    }
-
-    private displayBooks(container: HTMLElement, books: OPDSBook[], subcategories: OPDSCategory[], categoryTitle: string) {
-        let hasContent = false;
-
-        // Display subcategories first if they exist
-        if (subcategories.length > 0) {
-            hasContent = true;
-            container.createEl("h5", { text: "Subcategories", cls: "calibre-section-title" });
-
-            const subcategoriesContainer = container.createEl("div", { cls: "calibre-subcategories" });
-
-            subcategories.forEach((subcategory) => {
-                const subcategoryEl = subcategoriesContainer.createEl("div", { cls: "calibre-subcategory-item" });
-
-                subcategoryEl.createEl("span", { text: subcategory.title, cls: "calibre-subcategory-title" });
-
-                // Add click handler to open subcategory
-                subcategoryEl.addEventListener('click', () => {
-                    this.openCategory(subcategory);
-                });
-            });
-        }
-
-        // Display books if they exist
-        if (books.length > 0) {
-            hasContent = true;
-            container.createEl("h5", { text: "Books", cls: "calibre-section-title" });
-
-            const booksContainer = container.createEl("div", { cls: "calibre-books" });
-
-            books.forEach((book) => {
-                const bookEl = booksContainer.createEl("div", { cls: "calibre-book-item" });
-
-                bookEl.createEl("h5", { text: book.title, cls: "calibre-book-title" });
-
-                if (book.author) {
-                    bookEl.createEl("p", { text: `Author: ${book.author}`, cls: "calibre-book-author" });
-                }
-
-                if (book.summary) {
-                    const fullSummary = book.summary;
-                    const truncatedSummary = fullSummary.length > 200 ? fullSummary.substring(0, 200) + '...' : fullSummary;
-                    const isTruncated = fullSummary.length > 200;
-
-                    const summaryEl = bookEl.createEl("p", {
-                        text: truncatedSummary,
-                        cls: "calibre-book-summary"
-                    });
-
-                    if (isTruncated) {
-                        const readMoreBtn = summaryEl.createEl("span", { text: "Read more", cls: "calibre-read-more-btn" });
-                        readMoreBtn.addEventListener('click', () => {
-                            summaryEl.textContent = fullSummary;
-                        });
-                    }
-                }
-
-                if (book.formats.length > 0) {
-                    bookEl.createEl("p", { text: "Formats:", cls: "calibre-formats-label" });
-                    const formatsContainer = bookEl.createEl("div", { cls: "calibre-formats" });
-                    book.formats.sort((a, b) => {
-                        if (a.type === 'application/pdf') return -1;
-                        if (b.type === 'application/pdf') return 1;
-                        return 0;
-                    });
-                    book.formats.forEach((format) => {
-                        const buttonText = 'View in ' + getFormatDisplayName(format.type);
-                        const isPdf = format.type === 'application/pdf';
-                        const formatEl = formatsContainer.createEl("a", { 
-                            text: buttonText, 
-                            cls: `calibre-format-btn ${isPdf ? 'calibre-format-btn-pdf' : 'calibre-format-btn-default'}`,
-                            attr: { href: format.href }
-                        });
-                        formatEl.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            this.openFormat(format, book.title);
-                        });
-                    });
-                }
-            });
-        }
-
-        if (!hasContent) {
-            container.createEl("p", { text: "No content found in this category." });
-        }
-    }
-
-    private async openCategory(category: OPDSCategory) {
+    private async goToCatalog(catalog: OPDSCatalog) {
         if (!this.currentContainer) return;
 
-        this.currentContainer.empty();
-
-        // Add back button and header
-        const headerEl = this.currentContainer.createEl("div", { cls: "calibre-header" });
-        const backBtn = headerEl.createEl("button", { text: "← Back", cls: "calibre-back-btn" });
-
-        backBtn.addEventListener('click', () => {
-            this.goBack();
-        });
-
-        headerEl.createEl("h4", { text: category.title });
-
-        // Show loading state
-        const loadingEl = this.currentContainer.createEl("div", { text: "Loading books..." });
+        this.clearContainer();
+        this.createHeader(catalog.title, true);
+        
+        const loadingEl = this.showLoading("Loading...");
 
         try {
-            const { books, subcategories } = await this.opdsClient.getCategory(category.href);
-
-            // Remove loading message
+            const entry: OPDSEntry = await this.opdsClient.getEntry(catalog.href);
             loadingEl.remove();
 
             // Add to navigation stack
-            this.navigationStack.push({ title: category.title, url: category.href, content: { books, subcategories } });
+            this.navigationStack.push({
+                title: catalog.title,
+                url: catalog.href,
+                type: 'books',
+                data: entry
+            });
 
-            // Display books
-            this.displayBooks(this.currentContainer, books, subcategories, category.title);
+            this.displayCatalogsOrBooks(entry);
 
         } catch (error) {
             console.error('Error fetching category:', error);
             loadingEl.setText(`Error loading category: ${error.message}`);
         }
     }
+
+    // ===== DISPLAY METHODS =====
+
+    private displayCatalogsOrBooks(entry: OPDSEntry) {
+        if (!this.currentContainer) return;
+
+        let hasContent = false;
+
+        // Display subcategories first
+        if (entry.catalogs.length > 0) {
+            hasContent = true;
+            this.displayCategories(entry.catalogs);
+            return;
+        }
+
+        // Display books
+        if (entry.books.length > 0) {
+            hasContent = true;
+            this.displayBooks(entry.books);
+            return;
+        }
+
+        if (!hasContent) {
+            this.currentContainer.createEl("p", { text: "No content found in this category." });
+        }
+    }
+
+    private displayCategories(categories: OPDSCatalog[]) {
+        if (!this.currentContainer) return;
+
+        if (categories.length === 0) {
+            this.currentContainer.createEl("p", { text: "No categories found in the OPDS feed." });
+            return;
+        }
+
+        const categoriesContainer = this.currentContainer.createEl("div", { cls: "calibre-categories" });
+
+        categories.forEach((category) => {
+            const categoryEl = this.createCategoryElement(category);
+            categoriesContainer.appendChild(categoryEl);
+        });
+    }
+
+    private displayBooks(books: OPDSBook[]) {
+        if (!this.currentContainer) return;
+
+        const booksContainer = this.currentContainer.createEl("div", { cls: "calibre-books" });
+
+        books.forEach((book) => {
+            const bookEl = this.createBookElement(book);
+            booksContainer.appendChild(bookEl);
+        });
+    }
+
+    // ===== ELEMENT CREATION METHODS =====
+
+    private createCategoryElement(category: OPDSCatalog): HTMLElement {
+        const categoryEl = createEl("div", { cls: "calibre-category-item" });
+
+        categoryEl.createEl("h5", { text: category.title, cls: "calibre-category-title" });
+
+        if (category.bookCount !== undefined && category.bookCount > 0) {
+            categoryEl.createEl("small", { 
+                text: `${category.bookCount} books`, 
+                cls: "calibre-book-count" 
+            });
+        }
+
+        categoryEl.addEventListener('click', () => {
+            this.goToCatalog(category);
+        });
+
+        return categoryEl;
+    }
+
+    private createBookElement(book: OPDSBook): HTMLElement {
+        const bookEl = createEl("div", { cls: "calibre-book-item" });
+
+        // Thumbnail container
+        const thumbnailContainer = bookEl.createEl("div", { cls: "calibre-book-thumbnail" });
+        
+        if (book.thumbnailUrl) {
+            const thumbnail = thumbnailContainer.createEl("img", {
+                cls: "calibre-book-cover",
+                attr: {
+                    src: book.thumbnailUrl,
+                    alt: `Cover of ${book.title}`,
+                    loading: "lazy"
+                }
+            });
+            // Add error handling for broken images
+            thumbnail.addEventListener('error', () => {
+                thumbnail.style.display = 'none';
+                thumbnailContainer.createEl("div", {
+                    cls: "calibre-book-cover-placeholder",
+                    text: "📖"
+                });
+            });
+        } else {
+            // Placeholder when no thumbnail available
+            thumbnailContainer.createEl("div", {
+                cls: "calibre-book-cover-placeholder",
+                text: "📖"
+            });
+        }
+
+        // Content container (right side)
+        const contentContainer = bookEl.createEl("div", { cls: "calibre-book-content" });
+
+        // Title
+        contentContainer.createEl("h5", { text: book.title, cls: "calibre-book-title" });
+
+        // Author
+        if (book.author) {
+            contentContainer.createEl("p", { 
+                text: `Author: ${book.author}`, 
+                cls: "calibre-book-author" 
+            });
+        }
+
+        // Summary
+        if (book.summary) {
+            this.addBookSummary(contentContainer, book.summary);
+        }
+
+        // Formats
+        if (book.formats.length > 0) {
+            this.addBookFormats(contentContainer, book);
+        }
+
+        return bookEl;
+    }
+
+    // ===== HELPER METHODS FOR BOOK DETAILS =====
+
+    private addBookSummary(bookEl: HTMLElement, summary: string) {
+        const fullSummary = summary;
+        const truncatedSummary = fullSummary.length > 200 ? 
+            fullSummary.substring(0, 200) + '...' : fullSummary;
+        const isTruncated = fullSummary.length > 200;
+
+        const summaryEl = bookEl.createEl("p", {
+            text: truncatedSummary,
+            cls: "calibre-book-summary"
+        });
+
+        if (isTruncated) {
+            const readMoreBtn = summaryEl.createEl("span", { 
+                text: "Read more", 
+                cls: "calibre-read-more-btn" 
+            });
+            readMoreBtn.addEventListener('click', () => {
+                summaryEl.textContent = fullSummary;
+            });
+        }
+    }
+
+    private addBookFormats(bookEl: HTMLElement, book: OPDSBook) {
+        bookEl.createEl("p", { text: "Formats:", cls: "calibre-formats-label" });
+        const formatsContainer = bookEl.createEl("div", { cls: "calibre-formats" });
+
+        // Sort formats to prioritize PDF
+        const sortedFormats = [...book.formats].sort((a, b) => {
+            if (a.type === 'application/pdf') return -1;
+            if (b.type === 'application/pdf') return 1;
+            return 0;
+        });
+
+        sortedFormats.forEach((format) => {
+            const formatEl = this.createFormatButton(format, book.title);
+            formatsContainer.appendChild(formatEl);
+        });
+    }
+
+    private createFormatButton(format: OPDSBookFormat, bookTitle: string): HTMLElement {
+        const buttonText = 'View in ' + getFormatDisplayName(format.type);
+        const isPdf = format.type === 'application/pdf';
+        
+        const formatEl = createEl("p", { 
+            text: buttonText, 
+            cls: `calibre-format-btn ${isPdf ? 'calibre-format-btn-pdf' : 'calibre-format-btn-default'}`,
+            attr: { href: format.href }
+        });
+
+        formatEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openFormat(format, bookTitle);
+        });
+
+        return formatEl;
+    }
+
+    // ===== UI HELPER METHODS =====
+
+    private clearContainer() {
+        if (this.currentContainer) {
+            this.currentContainer.empty();
+        }
+    }
+
+    private createHeader(title: string, showBackButton = false) {
+        if (!this.currentContainer) return;
+
+        const headerEl = this.currentContainer.createEl("div", { cls: "calibre-header" });
+
+        if (showBackButton) {
+            const backBtn = headerEl.createEl("button", { 
+                text: "← Back", 
+                cls: "calibre-back-btn" 
+            });
+            backBtn.addEventListener('click', () => {
+                this.goBack();
+            });
+        }
+
+        headerEl.createEl("h4", { text: title });
+    }
+
+    private showLoading(message: string): HTMLElement {
+        if (!this.currentContainer) {
+            return createEl("div", {
+                cls: "loader"
+            });
+        }
+        
+        const loaderContainer = this.currentContainer.createEl("div", {cls: "loader-container" });
+        loaderContainer.createEl("div", {cls: "loader"});
+
+        return loaderContainer;
+    }
+
+    // ===== NAVIGATION =====
 
     private goBack() {
         if (this.navigationStack.length <= 1 || !this.currentContainer) return;
@@ -222,29 +342,31 @@ export class CalibreWebView extends ItemView {
         // Get previous page
         const previousPage = this.navigationStack[this.navigationStack.length - 1];
 
-        this.currentContainer.empty();
-
-        if (previousPage.title === "Main Catalog") {
-            // Go back to main catalog
-            this.displayCategories(this.currentContainer, previousPage.content as OPDSCategory[]);
-        } else {
-            // Go back to previous category
-            const content = previousPage.content as { books: OPDSBook[], subcategories: OPDSCategory[] };
-            this.displayBooks(this.currentContainer, content.books, content.subcategories, previousPage.title);
-        }
+        this.clearContainer();
+        this.createHeader(previousPage.title, this.navigationStack.length > 1);
+        this.displayCatalogsOrBooks(previousPage.data);
     }
 
-    async onClose() {
-        // Clean up when the view is closed
-        this.navigationStack = [];
-        this.currentContainer = null;
+    // ===== FILE HANDLING METHODS =====
+
+    private async openFormat(format: OPDSBookFormat, bookTitle: string) {
+        const downloadUrl = this.opdsClient.getBasicAuthenticatedBaseUrl() + format.href;
+
+        if (format.type === 'application/pdf') {
+            await this.openPDFInObsidian(downloadUrl, bookTitle);
+        } else if (format.type === 'application/epub+zip') {
+            await this.openEPUBInObsidian(downloadUrl, bookTitle, format);
+        } else {
+            window.open(format.href, '_blank');
+        }
     }
 
     private async openPDFInObsidian(pdfUrl: string, bookTitle: string) {
         try {
-            const santiizedBookTitle = sanitize(bookTitle);
-            const fileName = santiizedBookTitle + '.pdf';
+            const sanitizedBookTitle = sanitize(bookTitle);
+            const fileName = sanitizedBookTitle + '.pdf';
             const folderPath = getBookPathOrResourcePath(this.settings, this.app);
+            
             const folderExists = !!(this.app.vault.getFolderByPath(folderPath));
             if (!folderExists) {
                 await this.app.vault.createFolder(folderPath);
@@ -259,6 +381,7 @@ export class CalibreWebView extends ItemView {
                 // Prompt user for action
                 new PDFConflictModal(this.app, fileName, async (action) => {
                     let fileToOpen: TFile = existingFile as TFile;
+                    
                     if (action === 'cancel') {
                         return;
                     } else if (action === 'overwrite') {
@@ -272,7 +395,6 @@ export class CalibreWebView extends ItemView {
                     }
 
                     await leaf.openFile(fileToOpen as TFile);
-
                 }).open();
                 return;
             } else {
@@ -283,36 +405,20 @@ export class CalibreWebView extends ItemView {
 
         } catch (error) {
             console.error('Error opening PDF in Obsidian:', error);
-            // Fallback to external browser
             window.open(pdfUrl, '_blank');
         }
     }
 
-    private async openFormat(format: { type: string, href: string, title?: string }, bookTitle: string) {
-        const downloadUrl = this.opdsClient.getauthenticatedBaseUrl() + format.href;
-
-        if (format.type === 'application/pdf') {
-            // For PDFs, try to open in Obsidian first
-            await this.openPDFInObsidian(downloadUrl, bookTitle);
-        } else if (format.type === 'application/epub+zip') {
-            // For EPUBs, open in EPUB viewer
-            await this.openEPUBInObsidian(downloadUrl, bookTitle);
-        } else {
-            // For other formats, open in external browser
-            window.open(format.href, '_blank');
-        }
-    }
-
-    private async openEPUBInObsidian(epubUrl: string, bookTitle: string) {
+    private async openEPUBInObsidian(epubUrl: string, bookTitle: string, format: OPDSBookFormat) {
         try {
-            // Create a new leaf for the EPUB viewer
             const leaf = this.app.workspace.getLeaf('tab');
             if (leaf) {
                 await leaf.setViewState({
                     type: 'epub-viewer',
                     state: {
                         epubUrl: epubUrl,
-                        bookTitle: bookTitle
+                        bookTitle: bookTitle,
+                        format: format
                     },
                     active: true,
                 });
@@ -320,7 +426,6 @@ export class CalibreWebView extends ItemView {
             }
         } catch (error) {
             console.error('Error opening EPUB in Obsidian:', error);
-            // Fallback to external browser
             window.open(epubUrl, '_blank');
         }
     }

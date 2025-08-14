@@ -223,10 +223,68 @@ div[data-type="epub-viewer"] .view-content {
 }
 
 .calibre-book-item {
+    display: flex;
+    gap: 15px;
     padding: 15px;
     margin: 8px 0;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
+    align-items: flex-start;
+}
+
+/* Thumbnail styles */
+.calibre-book-thumbnail {
+    flex-shrink: 0;
+    width: 80px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.calibre-book-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.calibre-book-cover-placeholder {
+    font-size: 32px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+/* Content container */
+.calibre-book-content {
+    flex: 1;
+    min-width: 0; /* Allows text to wrap properly */
+}
+
+/* Responsive layout for screens below 700px */
+@media (max-width: 700px) {
+    .calibre-book-item {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .calibre-book-thumbnail {
+        width: 100px;
+        height: 150px;
+        margin-bottom: 10px;
+    }
+    
+    .calibre-book-content {
+        width: 100%;
+    }
 }
 
 .calibre-book-title {
@@ -272,6 +330,7 @@ div[data-type="epub-viewer"] .view-content {
     border-radius: 3px;
     font-size: 0.8em;
     text-decoration: none;
+    cursor: pointer;
 }
 
 .calibre-format-btn-pdf {
@@ -303,3 +362,52 @@ div[data-type="epub-viewer"] .view-content {
 .calibre-back-btn:hover {
     background: var(--interactive-hover);
 }
+
+/* Loader styles */
+.loader-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+}
+
+.loader {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--background-modifier-border);
+    border-top: 4px solid var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Loader from https://css-loaders.com/ cuz I'm lazy and bad at CSS ;) */
+.loader-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.loader {
+    width: 45px;
+    aspect-ratio: 1;
+    --c: no-repeat var(--interactive-accent);
+    background: 
+      var(--c) 0%   50%,
+      var(--c) 50%  50%,
+      var(--c) 100% 50%;
+    background-size: 20% 100%;
+    animation: l1 1s infinite linear;
+  }
+  @keyframes l1 {
+    0%  {background-size: 20% 100%,20% 100%,20% 100%}
+    33% {background-size: 20% 10% ,20% 100%,20% 100%}
+    50% {background-size: 20% 100%,20% 10% ,20% 100%}
+    66% {background-size: 20% 100%,20% 100%,20% 10% }
+    100%{background-size: 20% 100%,20% 100%,20% 100%}
+  }

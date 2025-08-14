@@ -1,140 +1,127 @@
 import { request } from 'obsidian';
-import { OPDSBook, OPDSCategory } from './types';
+import { OPDSBook, OPDSBookFormat, OPDSCatalog, OPDSEntry } from './interfaces';
+import { getFormatDisplayName } from './utils/name-utils';
 
 export class OPDSClient {
     private baseUrl: string;
     private username: string;
     private password: string;
-    private authenticatedBaseUrl: string;
 
     constructor(baseUrl: string, username: string, password: string) {
         this.baseUrl = baseUrl;
         this.username = username;
         this.password = password;
-        
+    }
+
+    // ===== URL METHODS =====
+
+    getOpdsUrl(): string {
+        return `${this.getBasicAuthenticatedBaseUrl()}/opds`;
+    }
+
+    /**
+     * Converting the base URL to a basic authenticated base URL with username and password in the URL.
+     * E.g: https://calibreweb.yourdomain.com/ -> https://username:password@calibreweb.yourdomain.com/
+     * 
+     * @returns The basic authenticated base URL.
+     */
+    getBasicAuthenticatedBaseUrl(): string {
         const isHttps = this.baseUrl.startsWith('https://');
-        this.authenticatedBaseUrl =  `${isHttps ? 'https' : 'http'}://${this.username}:${this.password}@${this.baseUrl.replaceAll('https://', '').replaceAll('http://', '')}`;
+        return `${isHttps ? 'https' : 'http'}://${this.username}:${this.password}@${this.baseUrl.replaceAll('https://', '').replaceAll('http://', '')}`;
     }
 
-    getCatalogUrl(): string {
-        return `${this.authenticatedBaseUrl}/opds`;
+    /**
+     * Converting the base URL to a basic authenticated base URL with username and password in the URL.
+     * E.g: https://calibreweb.yourdomain.com/ -> https://username:password@calibreweb.yourdomain.com/
+     * 
+     * @returns The basic authenticated base URL.
+     */
+    toAuthenticateUrlParams(url: string): string {
+        if (url.includes('?')) {
+            return `${url}&username=${this.username}&password=${this.password}`;
+        }
+        return `${url}?username=${this.username}&password=${this.password}`;
     }
 
-    getauthenticatedBaseUrl(): string {
-        return this.authenticatedBaseUrl;
+    // ===== REQUEST METHODS =====
+
+    async getEntry(path?: string): Promise<OPDSEntry> {
+        const url = path ? (this.getBasicAuthenticatedBaseUrl() + path) : this.getOpdsUrl();
+        const response = await request({ url: url, method: 'GET' });
+        return this.parseXML(response);
     }
 
-    async getCatalog(): Promise<OPDSCategory[]> {
-        const url = this.getCatalogUrl();
-        const response = await request({ url, method: 'GET' });
-        return this.parseOPDSXML(response);
-    }
+    // ===== PARSING METHODS =====
 
-    async getCategory(categoryUrl: string): Promise<{ books: OPDSBook[], subcategories: OPDSCategory[] }> {
-        const response = await request({ url: categoryUrl, method: 'GET' });
-        return this.parseBooksXML(response);
-    }
-
-    private parseOPDSXML(xmlText: string): OPDSCategory[] {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-        const categories: OPDSCategory[] = [];
-        const entries = xmlDoc.querySelectorAll('entry');
-        entries.forEach((entry) => {
-            const titleElement = entry.querySelector('title');
-            const linkElement = entry.querySelector('link');
-            if (titleElement && linkElement) {
-                const title = titleElement.textContent || 'Unknown';
-                const href = linkElement.getAttribute('href');
-                if (href) {
-                    const fullHref = href.startsWith('http') ? href : `${this.authenticatedBaseUrl}${href}`;
-                    categories.push({
-                        title: title,
-                        href: fullHref,
-                        bookCount: 0
-                    });
-                }
-            }
-        });
-        return categories;
-    }
-
-    private parseBooksXML(xmlText: string): { books: OPDSBook[], subcategories: OPDSCategory[] } {
+    private parseXML(xmlText: string): OPDSEntry {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "text/xml");
         const books: OPDSBook[] = [];
-        const subcategories: OPDSCategory[] = [];
+        const subCatalogs: OPDSCatalog[] = [];
         const entries = xmlDoc.querySelectorAll('entry');
         entries.forEach((entry) => {
-            const titleElement = entry.querySelector('title');
-            const linkElement = entry.querySelector('link');
-            if (titleElement && linkElement) {
-                const title = titleElement.textContent || 'Unknown';
-                const href = linkElement.getAttribute('href');
-                if (href) {
-                    const acquisitionLinks = entry.querySelectorAll('link[rel="http://opds-spec.org/acquisition"]');
-                    if (acquisitionLinks.length > 0) {
-                        const authorElement = entry.querySelector('author name');
-                        const summaryElement = entry.querySelector('summary');
-                        const updatedElement = entry.querySelector('updated');
-                        const formats: Array<{ type: string, href: string, title?: string }> = [];
-                        acquisitionLinks.forEach((link) => {
-                            const href = link.getAttribute('href');
-                            const type = link.getAttribute('type') || 'unknown';
-                            const title = link.getAttribute('title');
-                            if (href) {
-                                formats.push({
-                                    type: type,
-                                    href: href,
-                                    title: title || this.getFormatDisplayName(type)
-                                });
-                            }
-                        });
-                        const book: OPDSBook = {
-                            title: title,
-                            author: authorElement?.textContent || undefined,
-                            summary: summaryElement?.textContent || undefined,
-                            formats: formats,
-                            updated: updatedElement?.textContent || undefined
-                        };
-                        books.push(book);
-                    } else {
-                        const fullHref = href.startsWith('http') ? href : `${this.authenticatedBaseUrl}${href}`;
-                        subcategories.push({
-                            title: title,
-                            href: fullHref,
-                            bookCount: 0
-                        });
-                    }
-                }
-            }
+            const title = entry.querySelector('title')?.textContent || 'Unknown';
+
+            books.push(...this.toOPDSBooks(entry, title));
+            subCatalogs.push(...this.toOPDSCatalogs(entry, title));
         });
-        return { books, subcategories };
+        return { books, catalogs: subCatalogs };
     }
 
-    private getFormatDisplayName(type: string): string {
-        switch (type) {
-            case 'application/epub+zip': return 'EPUB';
-            case 'application/pdf': return 'PDF';
-            case 'application/mobi+xml':
-            case 'application/x-mobipocket-ebook': return 'MOBI';
-            case 'application/x-fictionbook+xml': return 'FB2';
-            case 'application/x-ibooks+xml': return 'iBooks';
-            case 'application/x-cbr+zip': return 'CBR';
-            case 'application/x-cbz+zip': return 'CBZ';
-            case 'application/x-rar': return 'RAR';
-            case 'application/x-7z-compressed': return '7Z';
-            case 'application/x-tar': return 'TAR';
-            case 'application/x-zip': return 'ZIP';
-            case 'application/x-bzip2': return 'BZIP2';
-            case 'application/x-gzip': return 'GZIP';
-            case 'application/x-xz': return 'XZ';
-            case 'application/x-zstd': return 'ZSTD';
-            case 'application/x-lzip': return 'LZIP';
-            case 'application/x-lzma': return 'LZMA';
-            case 'application/x-lz4': return 'LZ4';
-            case 'application/x-brotli': return 'BROTLI';
-            default: return type;
+    private toOPDSCatalogs(entry: Element, title: string): OPDSCatalog[] {
+        const subCatalogs: OPDSCatalog[] = [];
+
+        const catalog = entry.querySelector('link[type="application/atom+xml;profile=opds-catalog"]');
+        if (catalog) {
+            const href = catalog.getAttribute('href');
+            if (href) {
+                subCatalogs.push({
+                    title: title,
+                    href: href,
+                    bookCount: 0
+                });
+            }
         }
+        return subCatalogs;
     }
+
+    private toOPDSBooks(entry: Element, title: string): OPDSBook[] {
+        const books: OPDSBook[] = [];
+        const acquisitionLinks = entry.querySelectorAll('link[rel="http://opds-spec.org/acquisition"]');
+        if (acquisitionLinks.length > 0) {
+            const authorElement = entry.querySelector('author name');
+            const summaryElement = entry.querySelector('summary');
+            const updatedElement = entry.querySelector('updated');
+            const thumbnailElement = entry.querySelector('link[rel="http://opds-spec.org/image/thumbnail"]');
+            const formats: Array<{ type: string, href: string, title?: string }> = [];
+            acquisitionLinks.forEach((link) => {
+                const href = link.getAttribute('href');
+                const type = link.getAttribute('type') || 'unknown';
+                const title = link.getAttribute('title');
+                if (href) {
+                    formats.push({
+                        type: type,
+                        href: href,
+                        title: title || getFormatDisplayName(type)
+                    } as OPDSBookFormat);
+                }
+            });
+
+            let thumbnailUrl: string | undefined;
+            if (thumbnailElement?.getAttribute('href')) {
+                thumbnailUrl = this.toAuthenticateUrlParams(thumbnailElement.getAttribute('href') || '');
+            }
+            const book: OPDSBook = {
+                title: title,
+                author: authorElement?.textContent || undefined,
+                summary: summaryElement?.textContent || undefined,
+                formats: formats,
+                updated: updatedElement?.textContent || undefined,
+                thumbnailUrl: thumbnailUrl
+            };
+            books.push(book);
+        }
+        return books;
+    }
+
 }

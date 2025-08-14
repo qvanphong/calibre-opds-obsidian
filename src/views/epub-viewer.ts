@@ -4,7 +4,7 @@ import { showAppearanceSettingsModal, AppearanceSettings } from '../modal/appear
 import { EpubTopBar } from './epub-top-bar';
 import Navigation from 'epubjs/types/navigation';
 import { Plugin } from 'obsidian';
-import { EPUBViewerSettings } from '../types';
+import { EPUBViewerSettings, OPDSBookFormat } from '../interfaces';
 
 const VIEW_TYPE_EPUB = "epub-viewer";
 
@@ -28,8 +28,9 @@ const DEFAULT_SETTINGS: EPUBViewerSettings = {
 };
 
 export class EPUBViewer extends ItemView {
-    private epubUrl = '';
+    private bookUrl = '';
     private bookTitle = '';
+    private format: OPDSBookFormat | null = null;
     private settings: EPUBViewerSettings = { ...DEFAULT_SETTINGS };
     private currentRendition: Rendition | null = null;
     private book?: Book;
@@ -75,8 +76,9 @@ export class EPUBViewer extends ItemView {
     }
 
     async setState(state: any, result: any): Promise<void> {
-        this.epubUrl = state.epubUrl || '';
+        this.bookUrl = state.epubUrl || '';
         this.bookTitle = state.bookTitle || '';
+        this.format = state.format || '';
         await super.setState(state, result);
         await this.renderEpubViewer();
     }
@@ -112,7 +114,7 @@ export class EPUBViewer extends ItemView {
         const host = this.containerEl.children[1] as HTMLElement;
         host.empty();
 
-        if (!this.epubUrl || !this.bookTitle) {
+        if (!this.bookUrl || !this.bookTitle) {
             host.createEl("div", { text: "No EPUB file specified", cls: "epub-empty-message" });
             return;
         }
@@ -133,7 +135,7 @@ export class EPUBViewer extends ItemView {
     private async initializeEpubViewer(loadingEl: HTMLElement): Promise<void> {
         try {
             // Load book
-            this.book = await this.loadBookFromUrl(this.epubUrl);
+            this.book = await this.loadBookFromUrl();
 
             // Remove loading
             loadingEl.remove();
@@ -454,10 +456,14 @@ export class EPUBViewer extends ItemView {
         return { viewerContainer, readerHost, loadingEl, topBar };
     }
 
-    private async loadBookFromUrl(url: string): Promise<Book> {
-        const res = await requestUrl({ url, method: "GET" });
+    private async loadBookFromUrl(): Promise<Book> {
+        if (!this.bookUrl) {
+            throw new Error('No book URL found');
+        }
+
+        const res = await requestUrl({ url: this.bookUrl, method: "GET" });
         const arrayBuffer = res.arrayBuffer;
-        const blob = new Blob([arrayBuffer], { type: "application/epub+zip" });
+        const blob = new Blob([arrayBuffer], { type: this.format?.type || "application/epub+zip" });
         const book: Book = new Book(blob as any, { openAs: 'binary', replacements: 'blobUrl' });
         await book.ready;
         console.log(book);
