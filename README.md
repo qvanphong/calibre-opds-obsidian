@@ -1,6 +1,7 @@
 # Calibre-web Obsidian integration
 Integrate you [Calibre-web](https://github.com/janeczku/calibre-web) into Obsidian for Read & Note workflow
 
+![demo](https://github.com/qvanphong/calibre-web-obsidian/blob/docs/public/demo.gif)
 ## ✨ Features:
 - Browse your Calibre-web right in Obsidian
 - Read PDF & Epub with tiny space
