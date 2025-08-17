@@ -25,3 +25,6 @@ Integrate you [Calibre-web](https://github.com/janeczku/calibre-web) into Obsidi
 
 ## Be aware
 This plugin might expose your Calibre-web username & password to your internet history & through your vault, make sure you are having your Calibre-web in secure (through VPN or something like that)
+
+## TODO
+- [ ] Highlight for EPUB reader
