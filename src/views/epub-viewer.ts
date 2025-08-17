@@ -5,6 +5,7 @@ import { EpubTopBar } from './epub-top-bar';
 import Navigation from 'epubjs/types/navigation';
 import { Plugin } from 'obsidian';
 import { EPUBViewerSettings, OPDSBookFormat } from '../interfaces';
+import { hashArrayBuffer } from 'src/utils/crypto';
 
 const VIEW_TYPE_EPUB = "epub-viewer";
 
@@ -28,22 +29,23 @@ const DEFAULT_SETTINGS: EPUBViewerSettings = {
 };
 
 export class EPUBViewer extends ItemView {
+    private plugin: Plugin;
+
     private bookUrl = '';
     private bookTitle = '';
     private format: OPDSBookFormat | null = null;
     private settings: EPUBViewerSettings = { ...DEFAULT_SETTINGS };
     private currentRendition: Rendition | null = null;
     private book?: Book;
-    topBar: EpubTopBar;
-    private plugin: Plugin;
+    private bookHash?: string;
 
+    private topBar: EpubTopBar;
     private epubView?: HTMLElement;
     private epubContainerView?: HTMLElement;
     private resizeObservers: ResizeObserver[] = [];
 
     constructor(leaf: WorkspaceLeaf, plugin: Plugin) {
         super(leaf);
-        this.plugin = plugin;
         this.loadSettings();
     }
 
@@ -142,23 +144,39 @@ export class EPUBViewer extends ItemView {
 
             // Make rendition
             this.currentRendition = this.makeRendition();
+            this.initializeKeyboardControls();
 
             // Apply layout & show first page
             this.applyLayout();
-            await this.currentRendition.display();
+            await this.loadLastReadingLocation();
 
             // Theme/styles
-            this.applyTheme();
+            this.applyAppearanceSetting();
 
             // Controls and listeners
             this.addNavigationControls();
-            this.setupThemeChangeListener();
 
             if (this.topBar) await this.wireTopBar();
 
         } catch (error) {
             throw new Error(`Failed to initialize EPUB viewer: ${error.message}`);
         }
+    }
+    initializeKeyboardControls() {
+        const rendition = this.currentRendition;
+        if (!rendition) return;
+
+        const goToNextOrPrevPage = (event: KeyboardEvent) => {
+            if (event.code == 'ArrowLeft') {
+                this.toNextOrPrevPage('prev');
+            }
+            if (event.code == 'ArrowRight') {
+                this.toNextOrPrevPage('next');
+            }
+        }
+
+        document.addEventListener('keydown', goToNextOrPrevPage, false);
+        rendition.on('keydown', goToNextOrPrevPage);
     }
 
     private addNavigationControls(): void {
@@ -220,9 +238,7 @@ export class EPUBViewer extends ItemView {
                 }
 
                 // Apply styles
-                if (this.currentRendition) {
-                    this.applySettingsToRendition(this.currentRendition);
-                }
+                this.applyAppearanceSetting();
             },
             onReset: () => {
                 const prevFlow = this.settings.flow;
@@ -245,62 +261,19 @@ export class EPUBViewer extends ItemView {
                 if ((flowChanged || columnsChanged) && currentLocation && this.currentRendition) {
                     setTimeout(() => this.currentRendition?.display(currentLocation), 100);
                 }
-                if (this.currentRendition) {
-                    this.applySettingsToRendition(this.currentRendition);
-                }
+                this.applyAppearanceSetting();
             },
             onClose: () => { }
         });
     }
 
-    private applySettingsToRendition(rendition: Rendition): void {
-        if (!rendition) return;
-
+    private applyAppearanceSetting(): void {
+        const rendition = this.currentRendition
         // Determine current theme
         const isDarkMode = document.body.classList.contains('theme-dark');
         const theme = isDarkMode ? this.settings.darkMode : this.settings.lightMode;
 
-        // Create CSS content
-        // const styleContent = `
-        //     html, body {
-        //         background: ${theme.backgroundColor} !important;
-        //         color: ${theme.textColor} !important;
-        //         font-family: ${this.getEffectiveFontFamily()} !important;
-        //         font-size: ${this.settings.fontSize} !important;
-        //         line-height: ${this.settings.lineHeight} !important;
-        //         margin: ${this.settings.margin} !important;
-        //     }
-
-        //     * {
-        //         color: ${theme.textColor} !important;
-        //     }
-
-        //     h1, h2, h3, h4, h5, h6 {
-        //         color: ${theme.textColor} !important;
-        //         font-family: ${this.getEffectiveFontFamily()} !important;
-        //         margin-top: 1.5em !important;
-        //         margin-bottom: 0.5em !important;
-        //     }
-
-        //     p, div, span {
-        //         color: ${theme.textColor} !important;
-        //         font-family: ${this.getEffectiveFontFamily()} !important;
-        //         font-size: ${this.settings.fontSize} !important;
-        //         line-height: ${this.settings.lineHeight} !important;
-        //         margin-bottom: 1em !important;
-        //     }
-
-        //     a {
-        //         color: ${theme.textColor} !important;
-        //         text-decoration: underline !important;
-        //     }
-
-        //     a:hover {
-        //         color: ${theme.textColor} !important;
-        //         text-decoration: none !important;
-        //     }
-        // `;
-
+        if (rendition) {
         // Apply styles to the rendition
         rendition.themes.default({
             body: {
@@ -330,38 +303,22 @@ export class EPUBViewer extends ItemView {
             } else {
                 rendition.spread('none');
             }
+            }
+        }
+
+        const epubView = this.epubView
+        // Prevent flickering when switching pages
+        if (epubView) {
+            epubView.style.backgroundColor = theme.backgroundColor;
         }
     }
 
-    private setupThemeChangeListener(): void {
-        // Listen for theme changes
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    // Reapply settings when theme changes
-                    if (this.currentRendition) {
-                        setTimeout(() => {
-                            if (this.currentRendition) {
-                                this.applySettingsToRendition(this.currentRendition);
-                            }
-                        }, 100);
-                    }
-                }
-            });
-        });
-
-        observer.observe(document.body, {
-            attributes: true,
-            attributeFilter: ['class']
-        });
-    }
-
-    private setupResizeObserver(): void {   
+    private setupResizeObserver(): void {
         if (this.epubContainerView) {
             const epubContainerViewObserver: ResizeObserver = new ResizeObserver((entries) => {
                 entries.forEach((entry) => {
                     const itemViewWidth: number = entry.contentRect.width;
-                    if (itemViewWidth <= 650) {  
+                    if (itemViewWidth <= 650) {
                         if (!this.epubContainerView?.classList.contains('small-screen')) {
                             this.epubContainerView?.classList.add('small-screen');
                         }
@@ -424,14 +381,14 @@ export class EPUBViewer extends ItemView {
             cls: 'epub-arrow epub-arrow-left',
             text: '‹'
         });
-        leftArrow.addEventListener('click', () => rendition.prev());
+        leftArrow.addEventListener('click', () => this.toNextOrPrevPage('prev'));
 
         // Right arrow
         const rightArrow = container.createEl('div', {
             cls: 'epub-arrow epub-arrow-right',
             text: '›'
         });
-        rightArrow.addEventListener('click', () => rendition.next());
+        rightArrow.addEventListener('click', () => this.toNextOrPrevPage('next'));
     }
 
     // Compute effective font family with a safe fallback
@@ -466,7 +423,10 @@ export class EPUBViewer extends ItemView {
         const blob = new Blob([arrayBuffer], { type: this.format?.type || "application/epub+zip" });
         const book: Book = new Book(blob as any, { openAs: 'binary', replacements: 'blobUrl' });
         await book.ready;
-        console.log(book);
+
+        // Hashing book array buffer to use as a local storage key
+        this.bookHash = await hashArrayBuffer(arrayBuffer);
+
         return book;
     }
 
@@ -493,22 +453,6 @@ export class EPUBViewer extends ItemView {
         }
     }
 
-    private applyTheme(): void {
-        if (!this.currentRendition) {
-            console.error('No rendition found, book should load & rendition should be made first before applyTheme');
-            return;
-        }
-        this.applySettingsToRendition(this.currentRendition);
-    }
-
-    private async generateTotalPages(): Promise<number> {
-        const locations = this.book?.locations;
-        if (!locations) return 0;
-
-        const pages = await locations.generate?.(1200)
-        return pages.length;
-    }
-
     private async wireTopBar() {
 
         if (!this.book || !this.currentRendition) {
@@ -527,17 +471,7 @@ export class EPUBViewer extends ItemView {
             onGoto: (page: number) => goToPage(page),
         });
 
-        const locations = this.book?.locations;
-        if (locations) {
-            this.generateTotalPages()
-                .then(total => {
-                    this.topBar.setTotal(total);
-                    const currentLocation: Location | null = this.currentRendition?.currentLocation() as unknown as Location | null;
-                    if (currentLocation) {
-                        this.topBar.setCurrent(currentLocation.start.location + 1);
-                    }
-                });
-        }
+        this.initBookLocations();
 
         this.currentRendition?.on('relocated', (location: Location) => {
             this.topBar.setCurrent(location.start.location + 1);
@@ -545,6 +479,8 @@ export class EPUBViewer extends ItemView {
 
         const goToPage = (requested: number) => {
             const totalPages = this.topBar.getTotal();
+            const locations = this.book?.locations;
+
             if (!locations || totalPages === 0) return;
             const page = Math.max(1, Math.min(totalPages, requested));
 
@@ -554,5 +490,75 @@ export class EPUBViewer extends ItemView {
                 this.currentRendition?.display(cfi);
             }
         };
+    }
+
+    private async initBookLocations(): Promise<void> {
+
+        if (!this.book?.locations) return;
+
+        if (!this.loadBookLocationsFromLocalStorage()) {
+            await this.generateTotalPages()
+            this.saveBookLocations();
+        }
+
+        const total = this.book.locations.length();
+        this.topBar.setTotal(total);
+        const currentLocation: Location | null = this.currentRendition?.currentLocation() as unknown as Location | null;
+        if (currentLocation) {
+            this.topBar.setCurrent(currentLocation.start.location + 1);
+        }
+    }
+
+    private async generateTotalPages(): Promise<number> {
+        const locations = this.book?.locations;
+        if (!locations) return 0;
+
+        const pages = await locations.generate?.(1200)
+        return pages.length;
+    }
+
+    private loadBookLocationsFromLocalStorage(): boolean {
+        if (!this.bookHash) return false;
+
+        const bookLocations = localStorage.getItem(`${this.bookHash}-locations`);
+        if (bookLocations) {
+            this.book?.locations.load(JSON.parse(bookLocations));
+            return true;
+        }
+        return false;
+    }
+
+    private saveBookLocations(): void {
+        if (!this.bookHash) return;
+        const bookLocations = this.book?.locations.save();
+        localStorage.setItem(`${this.bookHash}-locations`, JSON.stringify(bookLocations));
+    }
+
+    private async toNextOrPrevPage(direction: 'next' | 'prev'): Promise<void> {
+        if (direction === 'next') {
+            await this.currentRendition?.next();
+        } else {
+            await this.currentRendition?.prev();
+        }
+        this.saveCurrentReadingLocation();
+    }
+
+    private saveCurrentReadingLocation(): void {
+        if (!this.bookHash) return;
+        // Don't know why typescript declared is as DisplayedLocation, but it's actually Location
+        const currentLocation = this.currentRendition?.currentLocation() as unknown as Location;
+        if (currentLocation) {
+            localStorage.setItem(`${this.bookHash}-current-location`, currentLocation.start.cfi);
+        }
+    }
+
+    private async loadLastReadingLocation(): Promise<void> {
+        if (!this.bookHash) return;
+        const lastReadingLocation = localStorage.getItem(`${this.bookHash}-current-location`);
+        if (lastReadingLocation && lastReadingLocation !== 'null' && lastReadingLocation !== 'undefined') {
+            this.currentRendition?.display(lastReadingLocation);
+        } else {
+            this.currentRendition?.display();
+        }
     }
 }
