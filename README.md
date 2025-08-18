@@ -25,10 +25,11 @@ Integrate you [Calibre-web](https://github.com/janeczku/calibre-web) into Obsidi
 
 ## Want to use with Calibre instead of Calibre-web?
 I got your back ;)
-![guide to setup calibre opds](https://github.com/qvanphong/calibre-web-obsidian/blob/docs/public/calibre-opds-setup.mp4)
+
+<video src="https://github.com/user-attachments/assets/32cb2c5e-7140-4fc6-89df-16a83aa898f3"></video>
 
 - First, setting your calibre content server, don't forget to force to use username & password for secure
-- Copy the necessaries information like: Content Server URL, Username & Password
+- Copy the necessaries information like: **Content Server URL, Username & Password**
 - Add it into the **Calibre-web Obsidian** in Obsidian's setting
 - Enjoy
 
