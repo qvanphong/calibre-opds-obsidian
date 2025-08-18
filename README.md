@@ -23,6 +23,15 @@ Integrate you [Calibre-web](https://github.com/janeczku/calibre-web) into Obsidi
 
 ### From Obsidian Community Plugins (Coming Soon)
 
+## Want to use with Calibre instead of Calibre-web?
+I got your back ;)
+![guide to setup calibre opds](https://github.com/qvanphong/calibre-web-obsidian/blob/docs/public/calibre-opds-setup.mp4)
+
+- First, setting your calibre content server, don't forget to force to use username & password for secure
+- Copy the necessaries information like: Content Server URL, Username & Password
+- Add it into the **Calibre-web Obsidian** in Obsidian's setting
+- Enjoy
+
 ## Be aware
 This plugin might expose your Calibre-web username & password to your internet history & through your vault, make sure you are having your Calibre-web in secure (through VPN or something like that)
 
