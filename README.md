@@ -29,6 +29,7 @@ I got your back ;)
 <video src="https://github.com/user-attachments/assets/32cb2c5e-7140-4fc6-89df-16a83aa898f3"></video>
 
 - First, setting your calibre content server, don't forget to force to use username & password for secure
+- ‼️ Go to **Preference** -> **Sharing over the net** -> **Advanced** -> **Choose the type of authentication used** to **basic** 
 - Copy the necessaries information like: **Content Server URL, Username & Password**
 - Add it into the **Calibre-web Obsidian** in Obsidian's setting
 - Enjoy
