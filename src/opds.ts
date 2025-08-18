@@ -71,7 +71,7 @@ export class OPDSClient {
     private toOPDSCatalogs(entry: Element, title: string): OPDSCatalog[] {
         const subCatalogs: OPDSCatalog[] = [];
 
-        const catalog = entry.querySelector('link[type="application/atom+xml;profile=opds-catalog"]');
+        const catalog = entry.querySelector('link[type*="profile=opds-catalog"]');
         if (catalog) {
             const href = catalog.getAttribute('href');
             if (href) {

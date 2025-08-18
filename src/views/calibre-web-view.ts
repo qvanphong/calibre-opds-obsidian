@@ -354,10 +354,8 @@ export class CalibreWebView extends ItemView {
 
         if (format.type === 'application/pdf') {
             await this.openPDFInObsidian(downloadUrl, bookTitle);
-        } else if (format.type === 'application/epub+zip') {
-            await this.openEPUBInObsidian(downloadUrl, bookTitle, format);
         } else {
-            window.open(format.href, '_blank');
+            await this.openEPUBInObsidian(downloadUrl, bookTitle, format);
         }
     }
 
