@@ -1,11 +1,12 @@
-import { debounce, ItemView, requestUrl, WorkspaceLeaf } from 'obsidian';
+import { debounce, ItemView, WorkspaceLeaf } from 'obsidian';
 import { Book, Location, Rendition } from 'epubjs';
 import { showAppearanceSettingsModal, AppearanceSettings } from '../modal/appearance-settings-modal';
 import { EpubTopBar } from './epub-top-bar';
 import Navigation from 'epubjs/types/navigation';
-import { Plugin } from 'obsidian';
 import { EPUBViewerSettings, OPDSBookFormat } from '../interfaces';
 import { hashArrayBuffer } from 'src/utils/crypto';
+import CalibreWebPlugin from 'src/main';
+import { OPDSClient } from 'src/opds';
 
 const VIEW_TYPE_EPUB = "epub-viewer";
 
@@ -29,7 +30,7 @@ const DEFAULT_SETTINGS: EPUBViewerSettings = {
 };
 
 export class EPUBViewer extends ItemView {
-    private plugin: Plugin;
+    private plugin: CalibreWebPlugin;
 
     private bookUrl = '';
     private bookTitle = '';
@@ -44,8 +45,9 @@ export class EPUBViewer extends ItemView {
     private epubContainerView?: HTMLElement;
     private resizeObservers: ResizeObserver[] = [];
 
-    constructor(leaf: WorkspaceLeaf, plugin: Plugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: CalibreWebPlugin) {
         super(leaf);
+        this.plugin = plugin;
         this.loadSettings();
     }
 
@@ -81,6 +83,8 @@ export class EPUBViewer extends ItemView {
         this.bookUrl = state.epubUrl || '';
         this.bookTitle = state.bookTitle || '';
         this.format = state.format || '';
+
+        (this.leaf as any).tabHeaderEl.ariaLabel = "new display Text";
         await super.setState(state, result);
         await this.renderEpubViewer();
     }
@@ -417,9 +421,8 @@ export class EPUBViewer extends ItemView {
         if (!this.bookUrl) {
             throw new Error('No book URL found');
         }
-
-        const res = await requestUrl({ url: this.bookUrl, method: "GET" });
-        const arrayBuffer = res.arrayBuffer;
+        const opdsClient = new OPDSClient(this.plugin.settings.address, this.plugin.settings.username, this.plugin.settings.password);
+        const arrayBuffer = await opdsClient.fetchArrayBuffer(this.bookUrl);
         const blob = new Blob([arrayBuffer], { type: this.format?.type || "application/epub+zip" });
         const book: Book = new Book(blob as any, { openAs: 'binary', replacements: 'blobUrl' });
         await book.ready;

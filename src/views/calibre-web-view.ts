@@ -69,7 +69,7 @@ export class CalibreWebView extends ItemView {
 
         } catch (error) {
             console.error('Error fetching OPDS feed:', error);
-            loadingEl.setText(`Error loading OPDS catalog: ${error.message}`);
+            loadingEl.setText(`Error loading OPDS catalog: ${error.message}, ${this.opdsClient.getOpdsUrl()}`);
         }
     }
 
@@ -152,6 +152,7 @@ export class CalibreWebView extends ItemView {
             const bookEl = this.createBookElement(book);
             booksContainer.appendChild(bookEl);
         });
+        this.initializeLazyThumbnailLoading(booksContainer)
     }
 
     // ===== ELEMENT CREATION METHODS =====
@@ -182,29 +183,23 @@ export class CalibreWebView extends ItemView {
         const thumbnailContainer = bookEl.createEl("div", { cls: "calibre-book-thumbnail" });
         
         if (book.thumbnailUrl) {
-            const thumbnail = thumbnailContainer.createEl("img", {
+            const thumbnailElement = thumbnailContainer.createEl("img", {
                 cls: "calibre-book-cover",
                 attr: {
-                    src: book.thumbnailUrl,
+                    "data-url": book.thumbnailUrl,
                     alt: `Cover of ${book.title}`,
                     loading: "lazy"
                 }
             });
-            // Add error handling for broken images
-            thumbnail.addEventListener('error', () => {
-                thumbnail.style.display = 'none';
-                thumbnailContainer.createEl("div", {
-                    cls: "calibre-book-cover-placeholder",
-                    text: "📖"
-                });
-            });
-        } else {
-            // Placeholder when no thumbnail available
-            thumbnailContainer.createEl("div", {
-                cls: "calibre-book-cover-placeholder",
-                text: "📖"
-            });
+
+            // Use empty thumbnail as default
+            thumbnailElement.style.display = 'none';
         }
+
+        thumbnailContainer.createEl("div", {
+            cls: "calibre-book-cover-placeholder",
+            text: "📖"
+        });
 
         // Content container (right side)
         const contentContainer = bookEl.createEl("div", { cls: "calibre-book-content" });
@@ -231,6 +226,80 @@ export class CalibreWebView extends ItemView {
         }
 
         return bookEl;
+    }
+    
+    private loadImage(thumbnailContainer: HTMLElement) {
+        const thumbnailImage: HTMLImageElement | null = thumbnailContainer.querySelector('img');
+        const thumbnailFallbackImage: HTMLElement | null = thumbnailContainer.querySelector('.calibre-book-cover-placeholder');
+        if (!thumbnailImage || !thumbnailFallbackImage) {
+          return;
+        }
+
+        const thumbnailUrl = thumbnailImage.getAttribute('data-url');
+        if (!thumbnailUrl) {
+            return;
+        }
+
+        this.opdsClient.fetchArrayBuffer(thumbnailUrl)
+            .then((thumbnailBuffer) => {
+                const thumbnailBlob = new Blob([thumbnailBuffer], { type: 'image/jpeg' });
+                const thumbnailBlobUrl = URL.createObjectURL(thumbnailBlob);
+                thumbnailImage.style.display = 'block';
+                thumbnailImage.src = thumbnailBlobUrl; 
+                thumbnailFallbackImage.style.display = 'none';
+                
+                // Add error handling for broken images
+                thumbnailImage.addEventListener('error', () => {
+                    thumbnailImage.style.display = 'none';
+                    thumbnailFallbackImage.style.display = 'block';
+                });
+            });
+            // thumbnailElement.addEventListener('error', () => {
+            //     thumbnailElement.style.display = 'none';
+            //     thumbnailContainer.createEl("div", {
+            //         cls: "calibre-book-cover-placeholder",
+            //         text: "📖"
+            //     });
+            // });
+
+            // this.opdsClient.getThumbnail(book.thumbnailUrl)
+            // .then((thumbnailBuffer) => {
+            //     const thumbnailBlob = new Blob([thumbnailBuffer], { type: 'image/jpeg' });
+            //     const thumbnailBlobUrl = URL.createObjectURL(thumbnailBlob);
+
+            //     const thumbnailElement = thumbnailContainer.createEl("img", {
+            //         cls: "calibre-book-cover",
+            //         attr: {
+            //             src: thumbnailBlobUrl,
+            //             alt: `Cover of ${book.title}`,
+            //             loading: "lazy"
+            //         }
+            //     });
+            //     // Add error handling for broken images
+            //     thumbnailElement.addEventListener('error', () => {
+            //         thumbnailElement.style.display = 'none';
+            //         thumbnailContainer.createEl("div", {
+            //             cls: "calibre-book-cover-placeholder",
+            //             text: "📖"
+            //         });
+            //     });
+            // });
+    }
+
+    private initializeLazyThumbnailLoading(bookContainer: HTMLElement) {
+        const observer = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+                if (entry.target.classList.contains('calibre-book-thumbnail') && 
+                    entry.isIntersecting) {
+                    this.loadImage(entry.target as HTMLElement);
+                    obs.unobserve(entry.target); // only load once
+                }
+            });
+        }, { rootMargin: "100px" }); // preload when 100px away
+
+        bookContainer.querySelectorAll('.calibre-book-thumbnail').forEach((thumbnail) => {
+            observer.observe(thumbnail);
+        });
     }
 
     // ===== HELPER METHODS FOR BOOK DETAILS =====
@@ -350,11 +419,11 @@ export class CalibreWebView extends ItemView {
     // ===== FILE HANDLING METHODS =====
 
     private async openFormat(format: OPDSBookFormat, bookTitle: string) {
-        const downloadUrl = this.opdsClient.getBasicAuthenticatedBaseUrl() + format.href;
-
         if (format.type === 'application/pdf') {
+            const downloadUrl = this.opdsClient.getBasicAuthenticatedBaseUrl() + format.href;
             await this.openPDFInObsidian(downloadUrl, bookTitle);
         } else {
+            const downloadUrl = this.opdsClient.getBaseUrl() + format.href;
             await this.openEPUBInObsidian(downloadUrl, bookTitle, format);
         }
     }

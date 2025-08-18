@@ -1,4 +1,4 @@
-import { request } from 'obsidian';
+import { request, requestUrl } from 'obsidian';
 import { OPDSBook, OPDSBookFormat, OPDSCatalog, OPDSEntry } from './interfaces';
 import { getFormatDisplayName } from './utils/name-utils';
 
@@ -16,7 +16,7 @@ export class OPDSClient {
     // ===== URL METHODS =====
 
     getOpdsUrl(): string {
-        return `${this.getBasicAuthenticatedBaseUrl()}/opds`;
+        return `${this.baseUrl}/opds`;
     }
 
     /**
@@ -43,12 +43,27 @@ export class OPDSClient {
         return `${url}?username=${this.username}&password=${this.password}`;
     }
 
+    getBaseUrl(): string {
+        return this.baseUrl;
+    }
+
     // ===== REQUEST METHODS =====
 
     async getEntry(path?: string): Promise<OPDSEntry> {
-        const url = path ? (this.getBasicAuthenticatedBaseUrl() + path) : this.getOpdsUrl();
-        const response = await request({ url: url, method: 'GET' });
+        const url = (path ? this.baseUrl + path : this.getOpdsUrl());
+        const response = await request({ url: url, 
+            method: 'GET', 
+            headers: { 'Authorization': `Basic ${btoa(`${this.username}:${this.password}`)}` }
+        });
         return this.parseXML(response);
+    }
+
+    async fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
+        const response = await requestUrl({ url: url, method: 'GET', 
+            headers: { 'Authorization': `Basic ${btoa(`${this.username}:${this.password}`)}` } 
+        });
+        
+        return response.arrayBuffer;
     }
 
     // ===== PARSING METHODS =====
@@ -109,7 +124,7 @@ export class OPDSClient {
 
             let thumbnailUrl: string | undefined;
             if (thumbnailElement?.getAttribute('href')) {
-                thumbnailUrl = this.toAuthenticateUrlParams(this.baseUrl + thumbnailElement.getAttribute('href') || '');
+                thumbnailUrl = this.baseUrl + thumbnailElement.getAttribute('href');
             }
             const book: OPDSBook = {
                 title: title,
