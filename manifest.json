@@ -1,9 +1,9 @@
 {
-	"id": "calibre-web",
-	"name": "Calibre-web Obsidian",
+	"id": "calibre-opds",
+	"name": "Calibre OPDS Integration",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Access & Read books from Calibre-web.",
+	"description": "Access, browse & read your books from Calibre locally or remotely via Content Server (Calibre-web & Calibre).",
 	"author": "qvanphong",
 	"authorUrl": "https://github.com/qvanphong",
 	"isDesktopOnly": false
