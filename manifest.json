@@ -1,7 +1,7 @@
 {
 	"id": "calibre-opds",
 	"name": "Calibre OPDS Integration",
-	"version": "1.0.0",
+	"version": "1.0.3",
 	"minAppVersion": "0.15.0",
 	"description": "Access, browse & read your books from Calibre locally or remotely via Content Server (Calibre-web & Calibre).",
 	"author": "qvanphong",
