@@ -38,5 +38,12 @@ I got your back ;)
 ## Be aware
 This plugin might expose your Calibre-web username & password to your internet history & through your vault, make sure you are having your Calibre-web in secure (through VPN or something like that)
 
-## TODO
+## Roadmap
+### Calibre Web Browser UI
+- [ ] Customize Grid/List view
+
+### Epub Viewer
+- [ ] Enhance mobile navigation experience
+- [ ] Dummy EPUB file
+- [ ] File-based database for EPUB highlights
 - [ ] Highlight for EPUB reader
