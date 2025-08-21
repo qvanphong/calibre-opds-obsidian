@@ -125,6 +125,23 @@ div[data-type="epub-viewer"] .view-content {
     font-size: 48px !important;
 }
 
+.epub-viewer-container.small-screen {
+    height: 100%;
+}
+
+.small-screen .epub-reader-host {
+    height: 100%;
+}
+
+.small-screen .epub-view {
+    min-height: 100%;
+}
+
+.small-screen .epub-view iframe {
+    min-height: 100%;
+}
+
+
 /* TOC modal */
 .epub-toc-modal {
     position: fixed;
