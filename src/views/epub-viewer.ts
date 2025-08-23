@@ -11,6 +11,7 @@ import EpubNavigator from 'src/module/epub-navigator';
 import EpubPageProgression from 'src/module/epub-page-progression';
 import { EpubViewerEvent } from 'src/types';
 import EpubBookLocation from 'src/module/epub-book-location';
+import { EpubResizeHandler } from 'src/module/epub-resize-handler';
 
 const VIEW_TYPE_EPUB = "epub-viewer";
 
@@ -54,6 +55,7 @@ export class EPUBViewer extends ItemView {
     private epubNavigator: EpubNavigator;
     private epubPageProgression: EpubPageProgression = new EpubPageProgression(this);
     private epubBookLocation: EpubBookLocation = new EpubBookLocation(this);
+    private epubResizeHandler: EpubResizeHandler = new EpubResizeHandler(this);
 
     constructor(leaf: WorkspaceLeaf, plugin: CalibreWebPlugin) {
         super(leaf);
@@ -94,9 +96,9 @@ export class EPUBViewer extends ItemView {
         this.bookTitle = state.bookTitle || '';
         this.format = state.format || '';
 
-        (this.leaf as any).tabHeaderEl.ariaLabel = "new display Text";
         await super.setState(state, result);
         await this.renderEpubViewer();
+        this.containerEl.querySelector('.view-header-title')?.setText(this.getDisplayText());
     }
 
     async onOpen() {
@@ -109,20 +111,12 @@ export class EPUBViewer extends ItemView {
         this.resizeObservers.forEach(observer => observer.disconnect());
     }
 
-    private debouncedResize = debounce(async () => {
-        console.log('found resize, rerender');
-        this.currentRendition?.flow(this.settings.flow);
-        if (this.settings.flow === 'paginated') {
-            if (this.settings.columns === 2) {
-                this.currentRendition?.spread('auto');
-            } else {
-                this.currentRendition?.spread('none');
-            }
-        }
+    private debouncedTriggerResizeEvent = debounce(async () => {
+        this.events.trigger('epub-viewer-resize');
     }, 500, true); // false ⇒ trailing; true ⇒ leading
 
     onResize(): void {
-        this.debouncedResize();
+        this.debouncedTriggerResizeEvent();
     }
 
 
@@ -510,5 +504,9 @@ export class EPUBViewer extends ItemView {
 
     getEpubView(): HTMLElement | undefined {
         return this.epubView;
+    }
+
+    getSettings(): EPUBViewerSettings {
+        return this.settings;
     }
 }

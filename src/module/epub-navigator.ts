@@ -61,7 +61,7 @@ export default class EpubNavigator {
             }
         }
 
-        document.addEventListener('keydown', goToNextOrPrevPage, false);
+        // document.addEventListener('keydown', goToNextOrPrevPage, false);
         this.epubViewer.getRendition()?.on('keydown', goToNextOrPrevPage);
     }
 
