@@ -29,6 +29,8 @@ export default class EpubPageProgression {
             await this.epubViewer.getRendition()?.prev();
             this.justClickedPreviousPage = true;
         }
+        
+        this.epubViewer.getEpubContainerView()?.querySelector('iframe')?.focus();
         this.saveCurrentReadingLocation();
     }
 
