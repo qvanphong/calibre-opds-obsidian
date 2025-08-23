@@ -1,4 +1,4 @@
-import { debounce, ItemView, Platform, WorkspaceLeaf } from 'obsidian';
+import { debounce, Events, ItemView, WorkspaceLeaf } from 'obsidian';
 import { Book, Location, Rendition } from 'epubjs';
 import { showAppearanceSettingsModal, AppearanceSettings } from '../modal/appearance-settings-modal';
 import { EpubTopBar } from './epub-top-bar';
@@ -7,6 +7,10 @@ import { EPUBViewerSettings, OPDSBookFormat } from '../interfaces';
 import { hashArrayBuffer } from 'src/utils/crypto';
 import CalibreWebPlugin from 'src/main';
 import { OPDSClient } from 'src/opds';
+import EpubNavigator from 'src/module/epub-navigator';
+import EpubPageProgression from 'src/module/epub-page-progression';
+import { EpubViewerEvent } from 'src/types';
+import EpubBookLocation from 'src/module/epub-book-location';
 
 const VIEW_TYPE_EPUB = "epub-viewer";
 
@@ -37,29 +41,24 @@ export class EPUBViewer extends ItemView {
     private format: OPDSBookFormat | null = null;
     private settings: EPUBViewerSettings = { ...DEFAULT_SETTINGS };
     private currentRendition: Rendition | null = null;
-    private book?: Book;
-    private bookHash?: string;
+    protected book?: Book;
+    protected bookHash?: string;
 
-    private topBar: EpubTopBar;
-    private epubView?: HTMLElement;
-    private epubContainerView?: HTMLElement;
-    private resizeObservers: ResizeObserver[] = [];
+    protected topBar: EpubTopBar;
+    protected epubView?: HTMLElement;
+    protected epubContainerView?: HTMLElement;
+    protected resizeObservers: ResizeObserver[] = [];
 
-    // Touch properties
-    private touchStartTime?: number;
-    private startX = 0;
-    private startY = 0;
-    private justClickedPreviousPage = false;
-    private onEpubViewTouchStart: (e: TouchEvent) => void;
-    private onEpubViewTouchEnd: (e: TouchEvent) => void;
+    // Events
+    private events = new Events();
+    private epubNavigator: EpubNavigator;
+    private epubPageProgression: EpubPageProgression = new EpubPageProgression(this);
+    private epubBookLocation: EpubBookLocation = new EpubBookLocation(this);
 
     constructor(leaf: WorkspaceLeaf, plugin: CalibreWebPlugin) {
         super(leaf);
         this.plugin = plugin;
         this.loadSettings();
-
-        this.onEpubViewTouchStart = this.handleEpubViewTouchStart.bind(this);
-        this.onEpubViewTouchEnd = this.handleEpubViewTouchEnd.bind(this);
     }
 
     private loadSettings(): void {
@@ -142,7 +141,7 @@ export class EPUBViewer extends ItemView {
         this.topBar = topBar;
         this.setupResizeObserver();
         try {
-            await this.initializeEpubViewer(loadingEl);
+            await this.initializeEpubViewer();
         } catch (error) {
             console.error('Error loading EPUB:', error);
             loadingEl.setText(`Error loading EPUB: ${error.message}`);
@@ -151,24 +150,23 @@ export class EPUBViewer extends ItemView {
         }
     }
 
-    private async initializeEpubViewer(loadingEl: HTMLElement): Promise<void> {
+    private async initializeEpubViewer(): Promise<void> {
         try {
             // Load book
             this.book = await this.loadBookFromUrl();
 
             // Make rendition
             this.currentRendition = this.makeRendition();
-            this.initializeKeyboardControls();
 
-            // Apply layout & show first page
+            // Apply layout, themes
             this.applyLayout();
-            await this.loadLastReadingLocation();
-
-            // Theme/styles
             this.applyAppearanceSetting();
 
+            // Load last reading location or first page
+            this.epubPageProgression.loadLastReadingLocation();
+
             // Controls and listeners
-            this.addNavigationControls();
+            this.initializeNavigationControls();
 
             if (this.topBar) await this.wireTopBar();
 
@@ -176,31 +174,13 @@ export class EPUBViewer extends ItemView {
             throw new Error(`Failed to initialize EPUB viewer: ${error.message}`);
         }
     }
-    initializeKeyboardControls() {
-        const rendition = this.currentRendition;
-        if (!rendition) return;
 
-        const goToNextOrPrevPage = (event: KeyboardEvent) => {
-            if (event.code == 'ArrowLeft') {
-                this.toNextOrPrevPage('prev');
-            }
-            if (event.code == 'ArrowRight') {
-                this.toNextOrPrevPage('next');
-            }
-        }
-
-        document.addEventListener('keydown', goToNextOrPrevPage, false);
-        rendition.on('keydown', goToNextOrPrevPage);
-    }
-
-    private addNavigationControls(): void {
+    private initializeNavigationControls(): void {
         // Add navigation areas for paginated mode
         if (!this.currentRendition) return;
-        if (Platform.isMobile || Platform.isTablet) {
-            this.initMobileNavigationArea();
-        } else {
-            this.updateNavigationAreas(this.currentRendition);
-        }
+
+        this.epubNavigator = new EpubNavigator(this);
+        this.epubNavigator.initialize();
     }
 
     private showSettingsModal(): void {
@@ -385,61 +365,6 @@ export class EPUBViewer extends ItemView {
         document.body.appendChild(modal);
     }
 
-    private updateNavigationAreas(rendition: Rendition): void {
-        const container = this.epubContainerView;
-        if (!container) return;
-
-        // Remove any existing arrows or legacy nav areas
-        container.querySelector('.epub-arrow-left')?.remove();
-        container.querySelector('.epub-arrow-right')?.remove();
-
-        // Left arrow
-        const leftArrow = container.createEl('div', {
-            cls: 'epub-arrow epub-arrow-left',
-            text: '‹'
-        });
-        leftArrow.addEventListener('click', () => this.toNextOrPrevPage('prev'));
-
-        // Right arrow
-        const rightArrow = container.createEl('div', {
-            cls: 'epub-arrow epub-arrow-right',
-            text: '›'
-        });
-        rightArrow.addEventListener('click', () => this.toNextOrPrevPage('next'));
-    }
-
-    private initMobileNavigationArea(): void {
-        this.currentRendition?.on("touchstart", this.onEpubViewTouchStart);
-        this.currentRendition?.on("touchend", this.onEpubViewTouchEnd);
-    }
-
-    private handleEpubViewTouchStart(e: TouchEvent): void {
-        const touch = e.touches[0];
-        this.touchStartTime = Date.now();
-    
-        this.startX = touch.clientX;
-        this.startY = touch.clientY;
-        console.log(this.startX, this.startY)
-    }
-
-    private handleEpubViewTouchEnd(e: TouchEvent): void {
-        if (!this.touchStartTime) return;
-
-        const touch = e.changedTouches[0];
-        const touchDuration = Date.now() - this.touchStartTime;
-        const dx = Math.abs(touch.clientX - this.startX);
-        const dy = Math.abs(touch.clientY - this.startY);
-        console.log(dx, dy)
-        // Consider this as hold or scrolling event, ignore it to prevent accidental page change
-        if (touchDuration >= 300 || dx > 10 || dy > 10) return;
-
-        if (touch.clientX > window.innerWidth / 2) {
-          this.toNextOrPrevPage('next');
-        } else {
-          this.toNextOrPrevPage('prev');
-        }
-    }
-
     // Compute effective font family with a safe fallback
     private getEffectiveFontFamily(): string {
         const configured = (this.settings.fontFamily || '').trim();
@@ -488,7 +413,7 @@ export class EPUBViewer extends ItemView {
         });
 
         rendition.on("rendered", () => {
-            if (this.justClickedPreviousPage) {
+            if (this.epubPageProgression.isJustClickedPreviousPage()) {
                 const epubContainerEl = this.epubContainerView?.querySelector('.epub-container')
                 if (epubContainerEl) {
                     epubContainerEl.scrollTop = 0;
@@ -530,11 +455,10 @@ export class EPUBViewer extends ItemView {
             onGoto: (page: number) => goToPage(page),
         });
 
-        this.initBookLocations();
-
         this.currentRendition?.on('relocated', (location: Location) => {
             this.topBar.setCurrent(location.start.location + 1);
-            this.saveCurrentReadingLocation();
+            this.events.trigger('page-changed');
+            // this.epubPageProgression.saveCurrentReadingLocation();
         });
 
         const goToPage = (requested: number) => {
@@ -550,76 +474,41 @@ export class EPUBViewer extends ItemView {
                 this.currentRendition?.display(cfi);
             }
         };
+
+        this.events.trigger('top-bar-ready');
     }
 
-    private async initBookLocations(): Promise<void> {
+    // Getters
 
-        if (!this.book?.locations) return;
-
-        if (!this.loadBookLocationsFromLocalStorage()) {
-            await this.generateTotalPages()
-            this.saveBookLocations();
-        }
-
-        const total = this.book.locations.length();
-        this.topBar.setTotal(total);
-        const currentLocation: Location | null = this.currentRendition?.currentLocation() as unknown as Location | null;
-        if (currentLocation) {
-            this.topBar.setCurrent(currentLocation.start.location + 1);
-        }
+    getBookHash(): string {
+        return this.bookHash ?? '';
     }
 
-    private async generateTotalPages(): Promise<number> {
-        const locations = this.book?.locations;
-        if (!locations) return 0;
-
-        const pages = await locations.generate?.(1200)
-        return pages.length;
+    getRendition(): Rendition | null {
+        return this.currentRendition;
     }
 
-    private loadBookLocationsFromLocalStorage(): boolean {
-        if (!this.bookHash) return false;
-
-        const bookLocations = localStorage.getItem(`${this.bookHash}-locations`);
-        if (bookLocations) {
-            this.book?.locations.load(JSON.parse(bookLocations));
-            return true;
-        }
-        return false;
+    getTopBar(): EpubTopBar {
+        return this.topBar;
     }
 
-    private saveBookLocations(): void {
-        if (!this.bookHash) return;
-        const bookLocations = this.book?.locations.save();
-        localStorage.setItem(`${this.bookHash}-locations`, JSON.stringify(bookLocations));
+    getBook(): Book | undefined {
+        return this.book;
     }
 
-    private async toNextOrPrevPage(direction: 'next' | 'prev'): Promise<void> {
-        if (direction === 'next') {
-            await this.currentRendition?.next();
-        } else {
-            await this.currentRendition?.prev();
-            this.justClickedPreviousPage = true;
-        }
-        this.saveCurrentReadingLocation();
+    public on(event: EpubViewerEvent, callback: (...args: any[]) => void): void {
+        this.events.on(event, callback);
     }
 
-    private saveCurrentReadingLocation(): void {
-        if (!this.bookHash) return;
-        // Don't know why typescript declared is as DisplayedLocation, but it's actually Location
-        const currentLocation = this.currentRendition?.currentLocation() as unknown as Location;
-        if (currentLocation) {
-            localStorage.setItem(`${this.bookHash}-current-location`, currentLocation.start.cfi);
-        }
+    public trigger(event: EpubViewerEvent, ...args: any[]): void {
+        this.events.trigger(event, ...args);
     }
 
-    private async loadLastReadingLocation(): Promise<void> {
-        if (!this.bookHash) return;
-        const lastReadingLocation = localStorage.getItem(`${this.bookHash}-current-location`);
-        if (lastReadingLocation && lastReadingLocation !== 'null' && lastReadingLocation !== 'undefined') {
-            this.currentRendition?.display(lastReadingLocation);
-        } else {
-            this.currentRendition?.display();
-        }
+    getEpubContainerView(): HTMLElement | undefined {
+        return this.epubContainerView;
+    }
+
+    getEpubView(): HTMLElement | undefined {
+        return this.epubView;
     }
 }
