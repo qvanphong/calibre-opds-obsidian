@@ -125,6 +125,23 @@ div[data-type="epub-viewer"] .view-content {
     font-size: 48px !important;
 }
 
+.epub-viewer-container.small-screen {
+    height: 100%;
+}
+
+.small-screen .epub-reader-host {
+    height: 100%;
+}
+
+.small-screen .epub-view {
+    min-height: 100%;
+}
+
+.small-screen .epub-view iframe {
+    min-height: 100%;
+}
+
+
 /* TOC modal */
 .epub-toc-modal {
     position: fixed;
@@ -364,27 +381,6 @@ div[data-type="epub-viewer"] .view-content {
 }
 
 /* Loader styles */
-.loader-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 40px;
-}
-
-.loader {
-    width: 40px;
-    height: 40px;
-    border: 4px solid var(--background-modifier-border);
-    border-top: 4px solid var(--interactive-accent);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 /* Loader from https://css-loaders.com/ cuz I'm lazy and bad at CSS ;) */
 .loader-container {
     display: flex;
@@ -396,7 +392,7 @@ div[data-type="epub-viewer"] .view-content {
 .loader {
     width: 45px;
     aspect-ratio: 1;
-    --c: no-repeat var(--interactive-accent);
+    --c: no-repeat linear-gradient(var(--interactive-accent) 0 0);
     background: 
       var(--c) 0%   50%,
       var(--c) 50%  50%,

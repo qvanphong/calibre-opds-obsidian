@@ -56,7 +56,6 @@ export class CalibreWebView extends ItemView {
 
         try {
             const entry: OPDSEntry = await this.opdsClient.getEntry();
-            loadingEl.remove();
 
             // Initialize navigation stack
             this.navigationStack = [{
@@ -70,6 +69,8 @@ export class CalibreWebView extends ItemView {
         } catch (error) {
             console.error('Error fetching OPDS feed:', error);
             loadingEl.setText(`Error loading OPDS catalog: ${error.message}, ${this.opdsClient.getOpdsUrl()}`);
+        } finally {
+            loadingEl.remove();
         }
     }
 
@@ -390,7 +391,8 @@ export class CalibreWebView extends ItemView {
     private showLoading(message: string): HTMLElement {
         if (!this.currentContainer) {
             return createEl("div", {
-                cls: "loader"
+                cls: "loader",
+                text: message
             });
         }
         
